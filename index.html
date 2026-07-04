@@ -9,22 +9,32 @@
     --bg:#0f172a; --panel:#111827; --panel2:#1a2332; --border:#2a3648;
     --text:#e5e9f0; --muted:#93a2b8; --accent:#3aa0ff; --green:#22c55e;
     --yellow:#eab308; --red:#ef4444; --good:#16a34a; --bad:#dc2626;
+    --activeBg:#ea580c;
     color-scheme: dark;
   }
   *{box-sizing:border-box;}
+  html,body{height:100%;}
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
-  header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:sticky;top:0;background:var(--bg);z-index:50;}
-  header h1{font-size:20px;margin:0;}
-  header .sub{color:var(--muted);font-size:13px;margin-top:2px;}
-  .btn{background:var(--accent);color:#04121f;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;}
-  .btn:hover{opacity:0.9;}
-  .btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text);}
-  .btn:disabled{opacity:0.5;cursor:wait;}
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:252px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .sidebar-header h1{font-size:14.5px;margin:0;line-height:1.35;letter-spacing:.02em;text-transform:uppercase;}
+  .sidebar-header .sub{color:var(--muted);font-size:11px;margin-top:5px;}
+  .sidebar-nav{margin-top:18px;display:flex;flex-direction:column;gap:2px;flex:1;}
+  .sb-section{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin:14px 6px 4px;font-weight:700;}
+  .sb-item{display:flex;align-items:center;gap:9px;background:none;border:none;color:var(--muted);padding:9px 10px;border-radius:8px;font-size:13px;cursor:pointer;text-align:left;width:100%;font-family:inherit;}
+  .sb-item:hover{background:var(--panel2);color:var(--text);}
+  .sb-item.active{background:var(--activeBg);color:#fff;font-weight:600;}
+  .sb-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
+  .sidebar-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+  .sb-btn{border:none;border-radius:8px;padding:10px 12px;font-size:12.5px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;color:#fff;}
+  .sb-btn-refresh{background:var(--activeBg);}
+  .sb-btn-refresh:disabled{opacity:.5;cursor:wait;}
+  .sb-btn-analysis{background:linear-gradient(135deg,#7c3aed,#2563eb);}
+  .sb-btn-analysis:disabled{opacity:.35;cursor:not-allowed;}
+  .main{flex:1;min-width:0;padding:22px 28px 60px;max-width:1500px;}
+  .topbar{margin-bottom:16px;}
+  .page-title{font-size:19px;font-weight:700;}
   #status{font-size:12px;color:var(--muted);margin-top:4px;}
-  nav{display:flex;gap:8px;padding:0 24px;border-bottom:1px solid var(--border);}
-  nav button{background:none;border:none;color:var(--muted);padding:14px 6px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;}
-  nav button.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;}
-  .wrap{padding:20px 24px 60px;max-width:1400px;margin:0 auto;}
   .filters{display:flex;gap:20px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;align-items:flex-start;}
   .filters .group{display:flex;flex-direction:column;gap:6px;}
   .filters label.title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
@@ -35,6 +45,7 @@
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:24px;}
   .panel h2{margin:0 0 4px;font-size:16px;}
   .panel .desc{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  .ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;}
   table{border-collapse:collapse;width:100%;font-size:13px;}
   table.scroll-wrap{display:block;overflow-x:auto;}
   th,td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
@@ -54,84 +65,134 @@
   .placeholder .icon{font-size:36px;margin-bottom:10px;}
   .err-box{background:#2a1414;border:1px solid #5c2323;color:#fca5a5;padding:16px 18px;border-radius:10px;font-size:13px;line-height:1.7;}
   .hidden{display:none !important;}
-  .refresh-row{display:flex;align-items:center;gap:10px;}
   .delta-up{color:var(--green);}
   .delta-down{color:var(--red);}
+  .chart-wrap{margin-top:16px;background:var(--panel2);border-radius:10px;padding:14px;overflow-x:auto;}
+  .chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px;}
+  .chart-legend .item{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;}
+  .chart-legend .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
   a{color:var(--accent);}
+  @media (max-width:860px){
+    .app{flex-direction:column;}
+    .sidebar{width:100%;height:auto;position:relative;flex-direction:row;flex-wrap:wrap;overflow-x:auto;padding:12px;}
+    .sidebar-header{display:none;}
+    .sidebar-nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-top:0;}
+    .sb-section{display:none;}
+    .sb-item{white-space:nowrap;}
+    .sidebar-actions{flex-direction:row;margin-top:8px;padding-top:8px;}
+    .main{padding:16px 14px 40px;}
+  }
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Dashboard Vận Hành Khu Vực — Bùi Xuân Quang (Hải Phòng)</h1>
-    <div class="sub">Nguồn: Google Sheet "Báo cáo vận hành khu vực" — cập nhật trực tiếp</div>
-    <div id="status">Đang tải dữ liệu...</div>
-  </div>
-  <div class="refresh-row">
-    <button class="btn secondary" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
-  </div>
-</header>
-<nav id="tabs">
-  <button data-tab="d1" class="active">Dashboard 1 · GTC</button>
-  <button data-tab="d2">Dashboard 2 · ODR / OPR</button>
-  <button data-tab="d3">Dashboard 3 · FD</button>
-</nav>
-<div class="wrap">
-  <div class="filters">
-    <div class="group">
-      <label class="title">Từ ngày</label>
-      <input type="date" id="fromDate">
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>Báo Cáo Vận Hành<br>Khu Vực</h1>
+      <div class="sub">Người làm: Bùi Xuân Quang (Hải Phòng)</div>
     </div>
-    <div class="group">
-      <label class="title">Đến ngày</label>
-      <input type="date" id="toDate">
-    </div>
-    <div class="group" style="flex:1;min-width:280px;">
-      <label class="title">Bưu cục <span id="officeToggleAll" style="cursor:pointer;color:var(--accent);text-decoration:underline;font-weight:normal;">(chọn tất cả)</span></label>
-      <div class="office-list" id="officeList"></div>
-    </div>
-  </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <div class="sb-section">Tổng quan</div>
+      <button class="sb-item active" data-view="overview"><span class="sb-icon">🏠</span>Dashboard Tổng Quan</button>
 
-  <div id="tab-d1">
-    <div class="panel">
-      <h2>Bảng 1 — Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
-      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
-      <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
-      <div class="analysis" id="an-gtc-tong"></div>
-    </div>
-    <div class="panel">
-      <h2>Bảng 2 — Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
-      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
-      <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
-      <div class="analysis" id="an-gtc-tts"></div>
-    </div>
-  </div>
+      <div class="sb-section">GTC</div>
+      <button class="sb-item" data-view="gtc-tong"><span class="sb-icon">🎯</span>Tổng quan GTC Total</button>
+      <button class="sb-item" data-view="gtc-tts"><span class="sb-icon">🚀</span>Tổng quan GTC TTS</button>
 
-  <div id="tab-d2" class="hidden">
-    <div class="panel">
-      <h2>Bảng 1 — ODR TTS (Ontime giao) theo ngày</h2>
-      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
-      <div class="scroll-wrap"><table id="tbl-odr"></table></div>
-      <div class="analysis" id="an-odr"></div>
-    </div>
-    <div class="panel">
-      <h2>Bảng 2 — OPR TTS (Ontime lấy) theo ngày</h2>
-      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
-      <div class="scroll-wrap"><table id="tbl-opr"></table></div>
-      <div class="analysis" id="an-opr"></div>
-    </div>
-  </div>
+      <div class="sb-section">Ontime SLA TTS</div>
+      <button class="sb-item" data-view="odr"><span class="sb-icon">⏱️</span>Tổng quan ODR TTS</button>
+      <button class="sb-item" data-view="opr"><span class="sb-icon">📦</span>Tổng quan OPR TTS</button>
 
-  <div id="tab-d3" class="hidden">
-    <div class="panel">
-      <h2>FD theo bưu cục — so sánh 2 ngày gần nhất</h2>
-      <div class="desc">Bôi đỏ những bưu cục có chênh lệch trên 10%.</div>
-      <div id="fd-content"></div>
+      <div class="sb-section">FD</div>
+      <button class="sb-item" data-view="fd"><span class="sb-icon">⏳</span>FD theo bưu cục</button>
+    </nav>
+    <div class="sidebar-actions">
+      <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
+      <button class="sb-btn sb-btn-refresh" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
     </div>
-  </div>
+  </aside>
 
-  <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
+  <main class="main">
+    <div class="topbar">
+      <div class="page-title" id="pageTitle">Dashboard Tổng Quan</div>
+      <div id="status">Đang tải dữ liệu...</div>
+    </div>
+
+    <div class="filters">
+      <div class="group">
+        <label class="title">Từ ngày</label>
+        <input type="date" id="fromDate">
+      </div>
+      <div class="group">
+        <label class="title">Đến ngày</label>
+        <input type="date" id="toDate">
+      </div>
+      <div class="group" style="flex:1;min-width:280px;">
+        <label class="title">Bưu cục <span id="officeToggleAll" style="cursor:pointer;color:var(--accent);text-decoration:underline;font-weight:normal;">(chọn tất cả)</span></label>
+        <div class="office-list" id="officeList"></div>
+      </div>
+    </div>
+
+    <div id="view-overview" class="view">
+      <div class="ov-grid">
+        <div class="panel"><h2>GTC Tổng Ca 1 + 2</h2><div class="analysis" id="ov-gtc-tong"></div></div>
+        <div class="panel"><h2>GTC TTS Ca 1 + 2</h2><div class="analysis" id="ov-gtc-tts"></div></div>
+        <div class="panel"><h2>ODR TTS (Ontime giao)</h2><div class="analysis" id="ov-odr"></div></div>
+        <div class="panel"><h2>OPR TTS (Ontime lấy)</h2><div class="analysis" id="ov-opr"></div></div>
+      </div>
+    </div>
+
+    <div id="view-gtc-tong" class="view hidden">
+      <div class="panel">
+        <h2>Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
+        <div class="analysis" id="an-gtc-tong"></div>
+        <div class="chart-wrap hidden" id="chart-gtc-tong"></div>
+      </div>
+    </div>
+
+    <div id="view-gtc-tts" class="view hidden">
+      <div class="panel">
+        <h2>Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
+        <div class="analysis" id="an-gtc-tts"></div>
+        <div class="chart-wrap hidden" id="chart-gtc-tts"></div>
+      </div>
+    </div>
+
+    <div id="view-odr" class="view hidden">
+      <div class="panel">
+        <h2>ODR TTS (Ontime giao) theo ngày</h2>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="scroll-wrap"><table id="tbl-odr"></table></div>
+        <div class="analysis" id="an-odr"></div>
+        <div class="chart-wrap hidden" id="chart-odr"></div>
+      </div>
+    </div>
+
+    <div id="view-opr" class="view hidden">
+      <div class="panel">
+        <h2>OPR TTS (Ontime lấy) theo ngày</h2>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="scroll-wrap"><table id="tbl-opr"></table></div>
+        <div class="analysis" id="an-opr"></div>
+        <div class="chart-wrap hidden" id="chart-opr"></div>
+      </div>
+    </div>
+
+    <div id="view-fd" class="view hidden">
+      <div class="panel">
+        <h2>FD theo bưu cục — so sánh 2 ngày gần nhất</h2>
+        <div class="desc">Bôi đỏ những bưu cục có chênh lệch trên 10%.</div>
+        <div id="fd-content"></div>
+      </div>
+    </div>
+
+    <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
+  </main>
 </div>
 
 <script>
@@ -151,6 +212,7 @@ const FALLBACK_TIME = "chua co snapshot - dung du lieu truc tiep";
 let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
 let LAST_UPDATED = FALLBACK_TIME;
 let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
 function fmtNum(x){ return Math.round(x).toLocaleString('vi-VN'); }
@@ -323,7 +385,9 @@ function lastNDates(rows, n){
 }
 function officeLabel(o){ return o.replace('(HPH) ',''); }
 
-// ---------- Dashboard 1: GTC pivot-by-date tables ----------
+// ---------- Dashboard 1: GTC pivot-by-date tables (with Ca1/Ca2 split) ----------
+const CA1_GROUP = 'Hàng Mới Ca 1', CA2_GROUP = 'Hàng Mới Ca 2';
+
 function buildGtcPivotTable(rows, tblId, anId){
   const table = document.getElementById(tblId);
   const anEl = document.getElementById(anId);
@@ -336,10 +400,13 @@ function buildGtcPivotTable(rows, tblId, anId){
   rows.forEach(r=>{
     if(dates.indexOf(r.date)===-1) return;
     const byDate = agg[r.office];
-    if(!byDate[r.date]) byDate[r.date] = {vol:0, ganW:0, gtcW:0};
-    byDate[r.date].vol += r.volume;
-    byDate[r.date].ganW += r.volume*r.pct_gan;
-    byDate[r.date].gtcW += r.volume*r.pct_gtc;
+    if(!byDate[r.date]) byDate[r.date] = {vol:0, ganW:0, gtcW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}};
+    const c = byDate[r.date];
+    c.vol += r.volume;
+    c.ganW += r.volume*r.pct_gan;
+    c.gtcW += r.volume*r.pct_gtc;
+    if(r.group===CA1_GROUP){ c.ca1.vol += r.volume; c.ca1.gtcW += r.volume*r.pct_gtc; }
+    else if(r.group===CA2_GROUP){ c.ca2.vol += r.volume; c.ca2.gtcW += r.volume*r.pct_gtc; }
   });
 
   const lastDate = dates[dates.length-1];
@@ -357,38 +424,47 @@ function buildGtcPivotTable(rows, tblId, anId){
   officeRows.sort((a,b)=>(a.sortVal===null?Infinity:a.sortVal)-(b.sortVal===null?Infinity:b.sortVal));
 
   let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
-  dates.forEach(d=>{ head += '<th colspan="4" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
+  dates.forEach(d=>{ head += '<th colspan="6" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
   head += '</tr><tr><th class="stt-cell"></th><th class="office-cell"></th>';
-  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">Vol</th><th>%Gán</th><th>%GTC</th><th>GTC</th>'; });
+  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">Vol</th><th>%Gán</th><th>Ca1</th><th>Ca2</th><th>%GTC</th><th>GTC</th>'; });
   head += '</tr>';
 
+  function cellsFor(c){
+    if(!c || c.vol<=0){
+      return '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
+    }
+    const pctGan = c.ganW/c.vol, pctGtc = c.gtcW/c.vol;
+    const ca1Html = c.ca1.vol>0 ? ('<span class="heat" style="background:'+pctColor(c.ca1.gtcW/c.ca1.vol)+';padding:2px 6px;">'+fmtPct(c.ca1.gtcW/c.ca1.vol)+'</span>') : '-';
+    const ca2Html = c.ca2.vol>0 ? ('<span class="heat" style="background:'+pctColor(c.ca2.gtcW/c.ca2.vol)+';padding:2px 6px;">'+fmtPct(c.ca2.gtcW/c.ca2.vol)+'</span>') : '-';
+    let html = '<td style="border-left:2px solid var(--border);">'+fmtNum(c.vol)+'</td>';
+    html += '<td style="color:'+pctColor(pctGan)+';font-weight:600;">'+fmtPct(pctGan)+'</td>';
+    html += '<td>'+ca1Html+'</td>';
+    html += '<td>'+ca2Html+'</td>';
+    html += '<td><span class="heat" style="background:'+pctColor(pctGtc)+';padding:2px 6px;">'+fmtPct(pctGtc)+'</span></td>';
+    html += '<td>'+fmtNum(c.gtcW)+'</td>';
+    return html;
+  }
+
   let body = '';
-  const grand = {}; dates.forEach(d=>grand[d]={vol:0, ganW:0, gtcW:0});
+  const grand = {}; dates.forEach(d=>grand[d]={vol:0, ganW:0, gtcW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}});
   officeRows.forEach((row,idx)=>{
     let rowHtml = '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
     dates.forEach(d=>{
       const c = row.byDate[d];
-      if(!c || c.vol<=0){
-        rowHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td>';
-        return;
+      rowHtml += cellsFor(c);
+      if(c && c.vol>0){
+        const g = grand[d];
+        g.vol += c.vol; g.ganW += c.ganW; g.gtcW += c.gtcW;
+        g.ca1.vol += c.ca1.vol; g.ca1.gtcW += c.ca1.gtcW;
+        g.ca2.vol += c.ca2.vol; g.ca2.gtcW += c.ca2.gtcW;
       }
-      const pctGan = c.ganW/c.vol, pctGtc = c.gtcW/c.vol;
-      grand[d].vol += c.vol; grand[d].ganW += c.ganW; grand[d].gtcW += c.gtcW;
-      rowHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(c.vol)+'</td>';
-      rowHtml += '<td style="color:'+pctColor(pctGan)+';font-weight:600;">'+fmtPct(pctGan)+'</td>';
-      rowHtml += '<td><span class="heat" style="background:'+pctColor(pctGtc)+';padding:2px 6px;">'+fmtPct(pctGtc)+'</span></td>';
-      rowHtml += '<td>'+fmtNum(c.gtcW)+'</td>';
     });
     rowHtml += '</tr>';
     body += rowHtml;
   });
 
   let grandHtml = '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
-  dates.forEach(d=>{
-    const g = grand[d];
-    if(g.vol<=0){ grandHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td>'; return; }
-    grandHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(g.vol)+'</td><td>'+fmtPct(g.ganW/g.vol)+'</td><td>'+fmtPct(g.gtcW/g.vol)+'</td><td>'+fmtNum(g.gtcW)+'</td>';
-  });
+  dates.forEach(d=>{ grandHtml += cellsFor(grand[d]); });
   grandHtml += '</tr>';
 
   table.innerHTML = head + body + grandHtml;
@@ -505,6 +581,113 @@ function buildFD(){
   el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
 }
 
+// ---------- Detailed trend charts (SVG, no external libs) ----------
+const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
+
+function seriesForGtc(rows){
+  const dates = Array.from(new Set(rows.map(r=>r.date))).sort();
+  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
+  const perOD = {}; offices.forEach(o=>perOD[o]={});
+  const grand = {}; dates.forEach(d=>grand[d]={vol:0,gtcW:0});
+  rows.forEach(r=>{
+    const od = perOD[r.office];
+    if(!od[r.date]) od[r.date] = {vol:0,gtcW:0};
+    od[r.date].vol += r.volume; od[r.date].gtcW += r.volume*r.pct_gtc;
+    grand[r.date].vol += r.volume; grand[r.date].gtcW += r.volume*r.pct_gtc;
+  });
+  const series = offices.map((o,i)=>({
+    label: officeLabel(o), color: CHART_COLORS[i%CHART_COLORS.length], bold:false,
+    values: dates.map(d=>{ const c=perOD[o][d]; return (c && c.vol>0) ? c.gtcW/c.vol*100 : null; })
+  }));
+  series.push({label:'Grand Total', color:'#e5e9f0', bold:true,
+    values: dates.map(d=> grand[d].vol>0 ? grand[d].gtcW/grand[d].vol*100 : null)});
+  return {dates, series};
+}
+
+function seriesForTrend(rows){
+  const dates = Array.from(new Set(rows.map(r=>r.date))).sort();
+  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
+  const perOD = {}; offices.forEach(o=>perOD[o]={});
+  const grand = {}; dates.forEach(d=>grand[d]={cnt:0,w:0});
+  rows.forEach(r=>{
+    const od = perOD[r.office];
+    if(!od[r.date]) od[r.date] = {cnt:0,w:0};
+    od[r.date].cnt += r.count; od[r.date].w += r.count*r.pct;
+    grand[r.date].cnt += r.count; grand[r.date].w += r.count*r.pct;
+  });
+  const series = offices.map((o,i)=>({
+    label: officeLabel(o), color: CHART_COLORS[i%CHART_COLORS.length], bold:false,
+    values: dates.map(d=>{ const c=perOD[o][d]; return (c && c.cnt>0) ? c.w/c.cnt*100 : null; })
+  }));
+  series.push({label:'Grand Total', color:'#e5e9f0', bold:true,
+    values: dates.map(d=> grand[d].cnt>0 ? grand[d].w/grand[d].cnt*100 : null)});
+  return {dates, series};
+}
+
+function buildLineChartSVG(dates, series){
+  const W = Math.max(600, dates.length*70);
+  const H = 300;
+  const padL=42, padR=20, padT=18, padB=32;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  const xStep = dates.length>1 ? plotW/(dates.length-1) : 0;
+  function yFor(v){ return padT + plotH - (v/100)*plotH; }
+  function xFor(i){ return padL + i*xStep; }
+
+  let svg = '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" xmlns="http://www.w3.org/2000/svg">';
+  [0,25,50,75,100].forEach(v=>{
+    const y = yFor(v);
+    svg += '<line x1="'+padL+'" y1="'+y+'" x2="'+(W-padR)+'" y2="'+y+'" stroke="#2a3648" stroke-width="1"/>';
+    svg += '<text x="'+(padL-8)+'" y="'+(y+4)+'" font-size="10" fill="#93a2b8" text-anchor="end">'+v+'%</text>';
+  });
+  const labelEvery = Math.max(1, Math.ceil(dates.length/12));
+  dates.forEach((d,i)=>{
+    if(i%labelEvery!==0 && i!==dates.length-1) return;
+    svg += '<text x="'+xFor(i)+'" y="'+(H-padB+16)+'" font-size="10" fill="#93a2b8" text-anchor="middle">'+d.slice(5)+'</text>';
+  });
+  series.forEach(s=>{
+    let pts='';
+    s.values.forEach((v,i)=>{ if(v!==null) pts += xFor(i)+','+yFor(v)+' '; });
+    if(pts.trim()){
+      svg += '<polyline points="'+pts.trim()+'" fill="none" stroke="'+s.color+'" stroke-width="'+(s.bold?2.5:1.6)+'" opacity="'+(s.bold?1:0.85)+'"/>';
+      s.values.forEach((v,i)=>{ if(v!==null) svg += '<circle cx="'+xFor(i)+'" cy="'+yFor(v)+'" r="'+(s.bold?3:2)+'" fill="'+s.color+'"/>'; });
+    }
+  });
+  svg += '</svg>';
+  return svg;
+}
+
+const CHART_VIEWS = {
+  'gtc-tong': {getRows:()=>filterRows(DATA.gtc_tong), fn:seriesForGtc, label:'%GTC'},
+  'gtc-tts': {getRows:()=>filterRows(DATA.gtc_tts), fn:seriesForGtc, label:'%GTC'},
+  'odr': {getRows:()=>filterRows(DATA.odr_tts), fn:seriesForTrend, label:'%Ontime'},
+  'opr': {getRows:()=>filterRows(DATA.opr_tts), fn:seriesForTrend, label:'%Ontime'},
+};
+
+function renderChartForView(view){
+  const cfg = CHART_VIEWS[view];
+  if(!cfg) return;
+  const wrap = document.getElementById('chart-'+view);
+  if(!wrap) return;
+  const rows = cfg.getRows();
+  const {dates, series} = cfg.fn(rows);
+  if(dates.length===0){ wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;">Không có dữ liệu để vẽ biểu đồ.</div>'; return; }
+  let html = '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">Xu hướng '+cfg.label+' theo toàn bộ khoảng lọc ('+dmy(dates[0])+' → '+dmy(dates[dates.length-1])+')</div>';
+  html += buildLineChartSVG(dates, series);
+  html += '<div class="chart-legend">' + series.map(s=>'<span class="item"><span class="swatch" style="background:'+s.color+'"></span>'+s.label+'</span>').join('') + '</div>';
+  wrap.innerHTML = html;
+}
+
+function updateAnalysisButtonState(){
+  const enabled = Object.prototype.hasOwnProperty.call(CHART_VIEWS, currentView);
+  document.getElementById('btnAnalysis').disabled = !enabled;
+}
+
+function refreshOpenChart(){
+  const wrap = document.getElementById('chart-'+currentView);
+  if(wrap && !wrap.classList.contains('hidden')) renderChartForView(currentView);
+}
+
+// ---------- Render everything ----------
 function renderAll(){
   const g1 = filterRows(DATA.gtc_tong);
   const g2 = filterRows(DATA.gtc_tts);
@@ -515,17 +698,32 @@ function renderAll(){
   buildTrendPivotTable(o1, 'tbl-odr', 'an-odr', 'ODR');
   buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
   buildFD();
+  document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
+  document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
+  document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
+  document.getElementById('ov-opr').innerHTML = document.getElementById('an-opr').innerHTML;
+  refreshOpenChart();
 }
 
-// ---------- Tabs ----------
-document.getElementById('tabs').addEventListener('click', e=>{
-  const btn = e.target.closest('button[data-tab]');
+// ---------- Sidebar navigation ----------
+document.getElementById('sidebarNav').addEventListener('click', e=>{
+  const btn = e.target.closest('.sb-item');
   if(!btn) return;
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  ['d1','d2','d3'].forEach(t=>{
-    document.getElementById('tab-'+t).classList.toggle('hidden', t!==btn.dataset.tab);
-  });
+  const view = btn.dataset.view;
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
+  document.getElementById('view-'+view).classList.remove('hidden');
+  document.getElementById('pageTitle').textContent = btn.textContent.trim();
+  updateAnalysisButtonState();
+});
+
+document.getElementById('btnAnalysis').addEventListener('click', ()=>{
+  if(!Object.prototype.hasOwnProperty.call(CHART_VIEWS, currentView)) return;
+  const wrap = document.getElementById('chart-'+currentView);
+  const nowHidden = wrap.classList.toggle('hidden');
+  if(!nowHidden) renderChartForView(currentView);
 });
 
 // ---------- Refresh ----------
@@ -558,6 +756,7 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 (async function init(){
   initFilters();
   renderAll();
+  updateAnalysisButtonState();
   document.getElementById('status').textContent = 'Snapshot lúc build: ' + LAST_UPDATED + '. Đang thử tải dữ liệu trực tiếp...';
   try{
     const fresh = await fetchAll();
@@ -573,4 +772,3 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 </script>
 </body>
 </html>
-<!-- v2-aggregate-fix -->
