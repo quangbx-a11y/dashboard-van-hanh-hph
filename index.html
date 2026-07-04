@@ -39,9 +39,11 @@
   table.scroll-wrap{display:block;overflow-x:auto;}
   th,td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
   th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel);font-size:11.5px;text-transform:uppercase;}
-  td.office-cell,th.office-cell{text-align:left;position:sticky;left:0;background:var(--panel);font-weight:600;z-index:2;}
+  td.stt-cell,th.stt-cell{text-align:center;position:sticky;left:0;background:var(--panel);z-index:3;width:32px;}
+  td.office-cell,th.office-cell{text-align:left;position:sticky;left:32px;background:var(--panel);font-weight:600;z-index:2;}
   tr:hover td{background:rgba(255,255,255,0.03);}
-  tr:hover td.office-cell{background:#16202f;}
+  tr:hover td.office-cell,tr:hover td.stt-cell{background:#16202f;}
+  tr.grand-total td{background:var(--panel2)!important;font-weight:700;border-top:2px solid var(--border);}
   .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;}
   .analysis{margin-top:12px;padding:12px 14px;background:var(--panel2);border-radius:8px;font-size:13px;line-height:1.6;}
   .analysis b.best{color:var(--green);}
@@ -94,13 +96,13 @@
   <div id="tab-d1">
     <div class="panel">
       <h2>Bảng 1 — Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
-      <div class="desc">Chi tiết theo nhóm hàng: Ca 1, Ca 2, Hàng tồn — kèm volume từng nhóm và tổng sản lượng Total.</div>
+      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
       <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
       <div class="analysis" id="an-gtc-tong"></div>
     </div>
     <div class="panel">
       <h2>Bảng 2 — Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
-      <div class="desc">Chi tiết theo nhóm hàng: Ca 1, Ca 2, Hàng tồn — kèm volume từng nhóm và tổng sản lượng Total.</div>
+      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
       <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
       <div class="analysis" id="an-gtc-tts"></div>
     </div>
@@ -109,13 +111,13 @@
   <div id="tab-d2" class="hidden">
     <div class="panel">
       <h2>Bảng 1 — ODR TTS (Ontime giao) theo ngày</h2>
-      <div class="desc">Màu ô: xanh = tăng so với ngày trước, đỏ = giảm so với ngày trước. Số trong ô là % on-time.</div>
+      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
       <div class="scroll-wrap"><table id="tbl-odr"></table></div>
       <div class="analysis" id="an-odr"></div>
     </div>
     <div class="panel">
       <h2>Bảng 2 — OPR TTS (Ontime lấy) theo ngày</h2>
-      <div class="desc">Màu ô: xanh = tăng so với ngày trước, đỏ = giảm so với ngày trước. Số trong ô là % on-time.</div>
+      <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Sản lượng (SL) và %Ontime. Xếp hạng theo %Ontime ngày gần nhất, tệ nhất lên đầu.</div>
       <div class="scroll-wrap"><table id="tbl-opr"></table></div>
       <div class="analysis" id="an-opr"></div>
     </div>
@@ -144,14 +146,11 @@ const SHEETS = {
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
 const FALLBACK_DATA = {"gtc_tong":[],"gtc_tts":[],"odr_tts":[],"opr_tts":[]};
-const FALLBACK_TIME = "chưa có snapshot - dùng dữ liệu trực tiếp";
+const FALLBACK_TIME = "chua co snapshot - dung du lieu truc tiep";
 
 let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
 let LAST_UPDATED = FALLBACK_TIME;
 let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
-
-const GROUP_LABEL = {'Hàng Mới Ca 1':'Ca 1','Hàng Mới Ca 2':'Ca 2','Hàng Tồn':'Tồn'};
-const GROUP_ORDER = ['Hàng Mới Ca 1','Hàng Mới Ca 2','Hàng Tồn'];
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
 function fmtNum(x){ return Math.round(x).toLocaleString('vi-VN'); }
@@ -207,7 +206,6 @@ function toNum(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
 
 async function fetchAll(){
   const results = {};
-  let fdOk = true, fdError = null;
   const specs = [
     ['gtc_tong', SHEETS.gtc_tong],
     ['gtc_tts', SHEETS.gtc_tts],
@@ -223,6 +221,7 @@ async function fetchAll(){
         group: (r[2]||'').toString().trim(),
         date: parseDate(r[3]),
         volume: toNum(r[4]),
+        pct_gan: toNum(r[5]),
         pct_gtc: toNum(r[6]),
       })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
     } else {
@@ -303,97 +302,190 @@ function initFilters(){
 function inRange(d){ return d>=fromDate && d<=toDate; }
 function filterRows(rows){ return rows.filter(r=>selectedOffices.has(r.office) && inRange(r.date)); }
 
-// ---------- Dashboard 1: GTC tables ----------
-function buildGtcTable(rows, tblId, anId){
-  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
-  const table = document.getElementById(tblId);
-  let head = '<tr><th class="office-cell">Bưu cục</th>';
-  GROUP_ORDER.forEach(g=>{ head += `<th>${GROUP_LABEL[g]}<br><span style="font-weight:400">Volume</span></th><th>${GROUP_LABEL[g]}<br><span style="font-weight:400">%GTC</span></th>`; });
-  head += '<th>Total<br>Volume</th><th>%GTC<br>Chung</th></tr>';
-  let body = '';
-  const officeStats = [];
-  offices.forEach(o=>{
-    const orows = rows.filter(r=>r.office===o);
-    let rowHtml = `<tr><td class="office-cell">${o.replace('(HPH) ','')}</td>`;
-    let totalVol = 0, totalWeighted = 0;
-    GROUP_ORDER.forEach(g=>{
-      const grows = orows.filter(r=>r.group===g);
-      const vol = grows.reduce((s,r)=>s+r.volume,0);
-      const weighted = grows.reduce((s,r)=>s+r.volume*r.pct_gtc,0);
-      const pct = vol>0 ? weighted/vol : null;
-      totalVol += vol; totalWeighted += weighted;
-      rowHtml += `<td>${vol>0?fmtNum(vol):'-'}</td><td>${pct!==null?`<span class="heat" style="background:${pctColor(pct)};padding:2px 6px;">${fmtPct(pct)}</span>`:'-'}</td>`;
-    });
-    const overallPct = totalVol>0 ? totalWeighted/totalVol : null;
-    rowHtml += `<td><b>${fmtNum(totalVol)}</b></td><td>${overallPct!==null?`<span class="heat" style="background:${pctColor(overallPct)};padding:3px 8px;font-weight:700;">${fmtPct(overallPct)}</span>`:'-'}</td></tr>`;
-    body += rowHtml;
-    if(overallPct!==null) officeStats.push({office:o, pct:overallPct, vol:totalVol});
-  });
-  table.innerHTML = head + body;
+// ---------- Date display helpers ----------
+const WEEKDAY_VN = ['Chủ Nhật','Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7'];
+function weekdayVN(dateStr){
+  const p = dateStr.split('-').map(Number);
+  const dt = new Date(p[0], p[1]-1, p[2]);
+  return WEEKDAY_VN[dt.getDay()];
+}
+function dmy(dateStr){
+  const p = dateStr.split('-');
+  return p[2]+'/'+p[1]+'/'+p[0];
+}
+function fmtDateHeader(dateStr){
+  return dmy(dateStr)+'<br><span style="font-weight:400;text-transform:none;">'+weekdayVN(dateStr)+'</span>';
+}
+function lastNDates(rows, n){
+  const set = new Set(rows.map(r=>r.date));
+  return Array.from(set).sort().slice(-n);
+}
+function officeLabel(o){ return o.replace('(HPH) ',''); }
 
+// ---------- Dashboard 1: GTC pivot-by-date tables ----------
+function buildGtcPivotTable(rows, tblId, anId){
+  const table = document.getElementById(tblId);
   const anEl = document.getElementById(anId);
-  if(officeStats.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
-  officeStats.sort((a,b)=>b.pct-a.pct);
-  const best = officeStats[0], worst = officeStats[officeStats.length-1];
-  let html = `Tổng cộng <b>${officeStats.length}</b> bưu cục có dữ liệu trong khoảng ${fromDate} → ${toDate}. `;
-  html += `Bưu cục tốt nhất: <b class="best">${best.office.replace('(HPH) ','')}</b> (${fmtPct(best.pct)}, volume ${fmtNum(best.vol)}). `;
-  if(officeStats.length>1) html += `Bưu cục cần cải thiện nhất: <b class="worst">${worst.office.replace('(HPH) ','')}</b> (${fmtPct(worst.pct)}, volume ${fmtNum(worst.vol)}).`;
+  const dates = lastNDates(rows, 7);
+  if(dates.length===0){ table.innerHTML=''; anEl.innerHTML='Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+
+  const offices = Array.from(new Set(rows.map(r=>r.office)));
+  const agg = {};
+  offices.forEach(o=>agg[o]={});
+  rows.forEach(r=>{
+    if(dates.indexOf(r.date)===-1) return;
+    const byDate = agg[r.office];
+    if(!byDate[r.date]) byDate[r.date] = {vol:0, ganW:0, gtcW:0};
+    byDate[r.date].vol += r.volume;
+    byDate[r.date].ganW += r.volume*r.pct_gan;
+    byDate[r.date].gtcW += r.volume*r.pct_gtc;
+  });
+
+  const lastDate = dates[dates.length-1];
+  const prevDate = dates.length>1 ? dates[dates.length-2] : null;
+
+  const officeRows = offices.map(o=>{
+    const byDate = agg[o];
+    let sortVal = null;
+    for(let i=dates.length-1;i>=0;i--){
+      const dd = byDate[dates[i]];
+      if(dd && dd.vol>0){ sortVal = dd.gtcW/dd.vol; break; }
+    }
+    return {office:o, byDate, sortVal};
+  });
+  officeRows.sort((a,b)=>(a.sortVal===null?Infinity:a.sortVal)-(b.sortVal===null?Infinity:b.sortVal));
+
+  let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
+  dates.forEach(d=>{ head += '<th colspan="4" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
+  head += '</tr><tr><th class="stt-cell"></th><th class="office-cell"></th>';
+  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">Vol</th><th>%Gán</th><th>%GTC</th><th>GTC</th>'; });
+  head += '</tr>';
+
+  let body = '';
+  const grand = {}; dates.forEach(d=>grand[d]={vol:0, ganW:0, gtcW:0});
+  officeRows.forEach((row,idx)=>{
+    let rowHtml = '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    dates.forEach(d=>{
+      const c = row.byDate[d];
+      if(!c || c.vol<=0){
+        rowHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td>';
+        return;
+      }
+      const pctGan = c.ganW/c.vol, pctGtc = c.gtcW/c.vol;
+      grand[d].vol += c.vol; grand[d].ganW += c.ganW; grand[d].gtcW += c.gtcW;
+      rowHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(c.vol)+'</td>';
+      rowHtml += '<td style="color:'+pctColor(pctGan)+';font-weight:600;">'+fmtPct(pctGan)+'</td>';
+      rowHtml += '<td><span class="heat" style="background:'+pctColor(pctGtc)+';padding:2px 6px;">'+fmtPct(pctGtc)+'</span></td>';
+      rowHtml += '<td>'+fmtNum(c.gtcW)+'</td>';
+    });
+    rowHtml += '</tr>';
+    body += rowHtml;
+  });
+
+  let grandHtml = '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  dates.forEach(d=>{
+    const g = grand[d];
+    if(g.vol<=0){ grandHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td>'; return; }
+    grandHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(g.vol)+'</td><td>'+fmtPct(g.ganW/g.vol)+'</td><td>'+fmtPct(g.gtcW/g.vol)+'</td><td>'+fmtNum(g.gtcW)+'</td>';
+  });
+  grandHtml += '</tr>';
+
+  table.innerHTML = head + body + grandHtml;
+
+  const withData = officeRows.filter(o=>o.sortVal!==null);
+  if(withData.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+  const worst = withData[0], best = withData[withData.length-1];
+  let html = 'Ngày <b>'+dmy(lastDate)+'</b>: tổng <b>'+withData.length+'</b> bưu cục có dữ liệu. ';
+  html += 'Bưu cục tốt nhất: <b class="best">'+officeLabel(best.office)+'</b> ('+fmtPct(best.sortVal)+'). ';
+  if(withData.length>1) html += 'Bưu cục cần cải thiện nhất: <b class="worst">'+officeLabel(worst.office)+'</b> ('+fmtPct(worst.sortVal)+'). ';
+  if(prevDate && grand[prevDate].vol>0 && grand[lastDate].vol>0){
+    const dVol = grand[lastDate].vol - grand[prevDate].vol;
+    const dGtc = grand[lastDate].gtcW - grand[prevDate].gtcW;
+    const sVol = dVol>=0 ? '+' : '';
+    const sGtc = dGtc>=0 ? '+' : '';
+    html += 'So với '+dmy(prevDate)+': Volume '+sVol+fmtNum(dVol)+' đơn · GTC '+sGtc+fmtNum(dGtc)+' đơn.';
+  }
   anEl.innerHTML = html;
 }
 
-// ---------- Dashboard 2: ODR / OPR pivot heatmap ----------
-function buildTrendTable(rows, tblId, anId){
-  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
-  const dates = Array.from(new Set(rows.map(r=>r.date))).sort();
+// ---------- Dashboard 2: ODR / OPR pivot-by-date tables ----------
+function buildTrendPivotTable(rows, tblId, anId, label){
   const table = document.getElementById(tblId);
-  let head = '<tr><th class="office-cell">Bưu cục</th>';
-  dates.forEach(d=>{ head += `<th>${d.slice(5)}</th>`; });
-  head += '<th>TB</th><th>Xu hướng</th></tr>';
-  let body = '';
-  const officeStats = [];
-  offices.forEach(o=>{
-    const byDate = {};
-    rows.filter(r=>r.office===o).forEach(r=>{ byDate[r.date]=r.pct; });
-    let rowHtml = `<tr><td class="office-cell">${o.replace('(HPH) ','')}</td>`;
-    let prev = null;
-    let sum=0,n=0;
-    const seq = [];
-    dates.forEach(d=>{
-      const v = byDate[d];
-      if(v===undefined){ rowHtml += '<td>-</td>'; return; }
-      seq.push(v);
-      let arrow = '';
-      if(prev!==null){
-        const delta = v-prev;
-        if(delta>0.001) arrow = `<span class="delta-up"> ▲</span>`;
-        else if(delta<-0.001) arrow = `<span class="delta-down"> ▼</span>`;
-      }
-      rowHtml += `<td><span class="heat" style="background:${pctColor(v)};padding:2px 6px;">${(v*100).toFixed(0)}%</span>${arrow}</td>`;
-      prev = v; sum += v; n++;
-    });
-    const avg = n>0 ? sum/n : null;
-    let trendHtml = '-';
-    if(seq.length>=2){
-      const delta = seq[seq.length-1]-seq[0];
-      const cls = delta>=0 ? 'delta-up' : 'delta-down';
-      const sign = delta>=0 ? '+' : '';
-      trendHtml = `<span class="${cls}">${sign}${(delta*100).toFixed(1)}đ</span>`;
-    }
-    rowHtml += `<td><b>${avg!==null?fmtPct(avg):'-'}</b></td><td>${trendHtml}</td></tr>`;
-    body += rowHtml;
-    if(avg!==null) officeStats.push({office:o, avg, last: seq.length?seq[seq.length-1]:null, first: seq.length?seq[0]:null});
-  });
-  table.innerHTML = head + body;
-
   const anEl = document.getElementById(anId);
-  if(officeStats.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
-  officeStats.sort((a,b)=>b.avg-a.avg);
-  const best = officeStats[0], worst = officeStats[officeStats.length-1];
-  let html = `Trung bình khoảng lọc: bưu cục tốt nhất <b class="best">${best.office.replace('(HPH) ','')}</b> (${fmtPct(best.avg)}), `;
-  html += `bưu cục thấp nhất <b class="worst">${worst.office.replace('(HPH) ','')}</b> (${fmtPct(worst.avg)}). `;
-  const declining = officeStats.filter(o=>o.first!==null && o.last!==null && (o.last-o.first) < -0.05).sort((a,b)=>(a.last-a.first)-(b.last-b.first));
-  if(declining.length){
-    html += `Đang giảm mạnh nhất trong kỳ: <b class="worst">${declining[0].office.replace('(HPH) ','')}</b> (${(declining[0].first*100).toFixed(1)}% → ${(declining[0].last*100).toFixed(1)}%).`;
+  const dates = lastNDates(rows, 7);
+  if(dates.length===0){ table.innerHTML=''; anEl.innerHTML='Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+
+  const offices = Array.from(new Set(rows.map(r=>r.office)));
+  const agg = {};
+  offices.forEach(o=>agg[o]={});
+  rows.forEach(r=>{
+    if(dates.indexOf(r.date)===-1) return;
+    const byDate = agg[r.office];
+    if(!byDate[r.date]) byDate[r.date] = {cnt:0, w:0};
+    byDate[r.date].cnt += r.count;
+    byDate[r.date].w += r.count*r.pct;
+  });
+
+  const lastDate = dates[dates.length-1];
+  const prevDate = dates.length>1 ? dates[dates.length-2] : null;
+
+  const officeRows = offices.map(o=>{
+    const byDate = agg[o];
+    let sortVal = null;
+    for(let i=dates.length-1;i>=0;i--){
+      const dd = byDate[dates[i]];
+      if(dd && dd.cnt>0){ sortVal = dd.w/dd.cnt; break; }
+    }
+    return {office:o, byDate, sortVal};
+  });
+  officeRows.sort((a,b)=>(a.sortVal===null?Infinity:a.sortVal)-(b.sortVal===null?Infinity:b.sortVal));
+
+  let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
+  dates.forEach(d=>{ head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
+  head += '</tr><tr><th class="stt-cell"></th><th class="office-cell"></th>';
+  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">SL</th><th>%OT</th>'; });
+  head += '</tr>';
+
+  let body = '';
+  const grand = {}; dates.forEach(d=>grand[d]={cnt:0, w:0});
+  officeRows.forEach((row,idx)=>{
+    let rowHtml = '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    dates.forEach(d=>{
+      const c = row.byDate[d];
+      if(!c || c.cnt<=0){
+        rowHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td>';
+        return;
+      }
+      const pct = c.w/c.cnt;
+      grand[d].cnt += c.cnt; grand[d].w += c.w;
+      rowHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(c.cnt)+'</td>';
+      rowHtml += '<td><span class="heat" style="background:'+pctColor(pct)+';padding:2px 6px;">'+fmtPct(pct)+'</span></td>';
+    });
+    rowHtml += '</tr>';
+    body += rowHtml;
+  });
+
+  let grandHtml = '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  dates.forEach(d=>{
+    const g = grand[d];
+    if(g.cnt<=0){ grandHtml += '<td style="border-left:2px solid var(--border);">-</td><td>-</td>'; return; }
+    grandHtml += '<td style="border-left:2px solid var(--border);">'+fmtNum(g.cnt)+'</td><td>'+fmtPct(g.w/g.cnt)+'</td>';
+  });
+  grandHtml += '</tr>';
+
+  table.innerHTML = head + body + grandHtml;
+
+  const withData = officeRows.filter(o=>o.sortVal!==null);
+  if(withData.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+  const worst = withData[0], best = withData[withData.length-1];
+  let html = 'Ngày <b>'+dmy(lastDate)+'</b>: bưu cục tốt nhất <b class="best">'+officeLabel(best.office)+'</b> ('+fmtPct(best.sortVal)+'), ';
+  html += 'bưu cục thấp nhất <b class="worst">'+officeLabel(worst.office)+'</b> ('+fmtPct(worst.sortVal)+'). ';
+  if(prevDate && grand[prevDate].cnt>0 && grand[lastDate].cnt>0){
+    const dCnt = grand[lastDate].cnt - grand[prevDate].cnt;
+    const dPct = (grand[lastDate].w/grand[lastDate].cnt) - (grand[prevDate].w/grand[prevDate].cnt);
+    const sCnt = dCnt>=0 ? '+' : '';
+    const sPct = dPct>=0 ? '+' : '';
+    html += 'So với '+dmy(prevDate)+': Sản lượng '+sCnt+fmtNum(dCnt)+' · %'+label+' '+sPct+(dPct*100).toFixed(1)+'đ.';
   }
   anEl.innerHTML = html;
 }
@@ -402,14 +494,13 @@ function buildTrendTable(rows, tblId, anId){
 function buildFD(){
   const el = document.getElementById('fd-content');
   if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0){
-    el.innerHTML = `<div class="err-box">
-      <b>⚠️ Không đọc được dữ liệu sheet "FD".</b><br>
-      Ô đầu tiên của sheet trả về lỗi công thức <code>#REF!</code> (tham chiếu bị hỏng), phía sau không còn dữ liệu nào khác.
-      Vui lòng kiểm tra và sửa công thức trong sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.
-    </div>`;
+    el.innerHTML = '<div class="err-box">'
+      + '<b>⚠️ Không đọc được dữ liệu sheet "FD".</b><br>'
+      + 'Ô đầu tiên của sheet trả về lỗi công thức <code>#REF!</code> (tham chiếu bị hỏng), phía sau không còn dữ liệu nào khác.'
+      + ' Vui lòng kiểm tra và sửa công thức trong sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.'
+      + '</div>';
     return;
   }
-  // If FD data becomes available, expect columns: office, date, value (best effort — adjust to real header once fixed)
   el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
 }
 
@@ -418,10 +509,10 @@ function renderAll(){
   const g2 = filterRows(DATA.gtc_tts);
   const o1 = filterRows(DATA.odr_tts);
   const o2 = filterRows(DATA.opr_tts);
-  buildGtcTable(g1, 'tbl-gtc-tong', 'an-gtc-tong');
-  buildGtcTable(g2, 'tbl-gtc-tts', 'an-gtc-tts');
-  buildTrendTable(o1, 'tbl-odr', 'an-odr');
-  buildTrendTable(o2, 'tbl-opr', 'an-opr');
+  buildGtcPivotTable(g1, 'tbl-gtc-tong', 'an-gtc-tong');
+  buildGtcPivotTable(g2, 'tbl-gtc-tts', 'an-gtc-tts');
+  buildTrendPivotTable(o1, 'tbl-odr', 'an-odr', 'ODR');
+  buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
   buildFD();
 }
 
@@ -447,7 +538,6 @@ document.getElementById('btnRefresh').onclick = async ()=>{
     DATA = fresh;
     LAST_UPDATED = new Date().toLocaleString('vi-VN');
     const offices = allOffices();
-    // preserve selection where possible
     const stillValid = new Set(Array.from(selectedOffices).filter(o=>offices.includes(o)));
     initFilters();
     if(stillValid.size){
