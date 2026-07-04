@@ -31,6 +31,15 @@
   .sb-btn-refresh:disabled{opacity:.5;cursor:wait;}
   .sb-btn-analysis{background:linear-gradient(135deg,#7c3aed,#2563eb);}
   .sb-btn-analysis:disabled{opacity:.35;cursor:not-allowed;}
+  .sb-btn-telegram{background:#229ED9;}
+  .sb-btn-telegram:disabled{opacity:.5;cursor:wait;}
+  .sb-btn-tgconfig{background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:600;}
+  .sb-btn-tgconfig:hover{color:var(--text);}
+  .sb-btn-tgsave{background:var(--accent);color:#04121f;}
+  .tg-panel{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:2px;display:flex;flex-direction:column;gap:6px;}
+  .tg-panel label{font-size:11px;color:var(--muted);}
+  .tg-panel input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;width:100%;}
+  .tg-note{font-size:10.5px;color:var(--muted);line-height:1.4;}
   .main{flex:1;min-width:0;padding:22px 28px 60px;max-width:1500px;}
   .topbar{margin-bottom:16px;}
   .page-title{font-size:19px;font-weight:700;}
@@ -80,7 +89,7 @@
     .sidebar-nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-top:0;}
     .sb-section{display:none;}
     .sb-item{white-space:nowrap;}
-    .sidebar-actions{flex-direction:row;margin-top:8px;padding-top:8px;}
+    .sidebar-actions{flex-direction:row;flex-wrap:wrap;margin-top:8px;padding-top:8px;}
     .main{padding:16px 14px 40px;}
   }
 </style>
@@ -109,6 +118,16 @@
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
+      <button class="sb-btn sb-btn-telegram" id="btnTelegram">📤 Bắn dữ liệu lên Telegram</button>
+      <button class="sb-btn sb-btn-tgconfig" id="tgToggle" type="button">⚙️ Cấu hình Telegram</button>
+      <div class="tg-panel hidden" id="tgPanel">
+        <label>Bot Token</label>
+        <input type="password" id="tgTokenInput" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+        <label>Chat ID</label>
+        <input type="text" id="tgChatIdInput" placeholder="-1001234567890" autocomplete="off">
+        <button class="sb-btn sb-btn-tgsave" id="tgSave" type="button">💾 Lưu cấu hình</button>
+        <div class="tg-note">Token &amp; Chat ID chỉ lưu trên trình duyệt này (localStorage), không lưu vào mã nguồn hay GitHub.</div>
+      </div>
       <button class="sb-btn sb-btn-refresh" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
     </div>
   </aside>
@@ -687,6 +706,75 @@ function refreshOpenChart(){
   if(wrap && !wrap.classList.contains('hidden')) renderChartForView(currentView);
 }
 
+// ---------- Telegram integration ----------
+function getTgConfig(){
+  return { token: localStorage.getItem('tgBotToken') || '', chatId: localStorage.getItem('tgChatId') || '' };
+}
+function saveTgConfig(token, chatId){
+  localStorage.setItem('tgBotToken', token);
+  localStorage.setItem('tgChatId', chatId);
+}
+function htmlToTelegram(html){
+  return (html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<b(?:\s[^>]*)?>/gi, '<b>')
+    .replace(/<\/b>/gi, '</b>')
+    .replace(/<span[^>]*>/gi, '')
+    .replace(/<\/span>/gi, '')
+    .replace(/&nbsp;/g, ' ');
+}
+function buildTelegramReport(){
+  const now = new Date().toLocaleString('vi-VN');
+  const lines = [];
+  lines.push('<b>📊 BÁO CÁO VẬN HÀNH KHU VỰC — Hải Phòng</b>');
+  lines.push('🕒 ' + now);
+  lines.push('');
+  const sections = [
+    ['🎯 GTC Tổng Ca 1+2', 'an-gtc-tong'],
+    ['🚀 GTC TTS Ca 1+2', 'an-gtc-tts'],
+    ['⏱ ODR TTS (Ontime giao)', 'an-odr'],
+    ['📦 OPR TTS (Ontime lấy)', 'an-opr'],
+  ];
+  sections.forEach(([title, id]) => {
+    const el = document.getElementById(id);
+    if (el && el.innerHTML.trim()) {
+      lines.push('<b>' + title + '</b>');
+      lines.push(htmlToTelegram(el.innerHTML));
+      lines.push('');
+    }
+  });
+  return lines.join('\n');
+}
+async function sendToTelegram(){
+  const { token, chatId } = getTgConfig();
+  if (!token || !chatId) {
+    document.getElementById('tgPanel').classList.remove('hidden');
+    alert('Vui lòng nhập Telegram Bot Token và Chat ID rồi bấm "Lưu cấu hình" trước khi gửi.');
+    return;
+  }
+  const btn = document.getElementById('btnTelegram');
+  const oldText = btn.textContent;
+  btn.disabled = true; btn.textContent = '📤 Đang gửi...';
+  try {
+    const text = buildTelegramReport();
+    const res = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' })
+    });
+    const j = await res.json();
+    if (j.ok) {
+      alert('Đã gửi báo cáo lên Telegram thành công!');
+    } else {
+      alert('Gửi thất bại: ' + (j.description || 'Lỗi không rõ. Kiểm tra lại Token/Chat ID.'));
+    }
+  } catch (e) {
+    alert('Lỗi kết nối tới Telegram: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = oldText;
+  }
+}
+
 // ---------- Render everything ----------
 function renderAll(){
   const g1 = filterRows(DATA.gtc_tong);
@@ -725,6 +813,27 @@ document.getElementById('btnAnalysis').addEventListener('click', ()=>{
   const nowHidden = wrap.classList.toggle('hidden');
   if(!nowHidden) renderChartForView(currentView);
 });
+
+document.getElementById('btnTelegram').addEventListener('click', sendToTelegram);
+
+document.getElementById('tgToggle').addEventListener('click', ()=>{
+  document.getElementById('tgPanel').classList.toggle('hidden');
+});
+
+document.getElementById('tgSave').addEventListener('click', ()=>{
+  const token = document.getElementById('tgTokenInput').value.trim();
+  const chatId = document.getElementById('tgChatIdInput').value.trim();
+  if(!token || !chatId){ alert('Vui lòng nhập đủ Bot Token và Chat ID.'); return; }
+  saveTgConfig(token, chatId);
+  document.getElementById('tgPanel').classList.add('hidden');
+  alert('Đã lưu cấu hình Telegram trên trình duyệt này.');
+});
+
+(function initTgPanel(){
+  const { token, chatId } = getTgConfig();
+  if(token) document.getElementById('tgTokenInput').value = token;
+  if(chatId) document.getElementById('tgChatIdInput').value = chatId;
+})();
 
 // ---------- Refresh ----------
 document.getElementById('btnRefresh').onclick = async ()=>{
@@ -772,7 +881,3 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 </script>
 </body>
 </html>
-
-<!-- redeploy-trigger-v3 -->
-
-<!-- redeploy-trigger-v4 -->
