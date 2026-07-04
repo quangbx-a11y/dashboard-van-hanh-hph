@@ -223,6 +223,11 @@ const SHEETS = {
   opr_tts: 'OPR TTS',
   fd: 'FD'
 };
+// FD sheet is fetched by gid instead of by name: Google's gviz name-lookup for
+// this particular tab intermittently resolves to a stale/broken cached sheet
+// (returns a single "#REF!" cell) even though the tab's real content is fine.
+// Fetching by gid bypasses that name-resolution bug entirely.
+const FD_GID = '886614472';
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
 const FALLBACK_DATA = {"gtc_tong":[],"gtc_tts":[],"odr_tts":[],"opr_tts":[]};
@@ -250,6 +255,30 @@ function loadSheetJSONP(sheetName, key){
   return new Promise((resolve, reject)=>{
     const cbName = 'gvizCb_' + key + '_' + Date.now();
     const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?sheet='+encodeURIComponent(sheetName)+'&tqx=out:json;responseHandler:'+cbName;
+    const script = document.createElement('script');
+    let done = false;
+    const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
+    function cleanup(){
+      clearTimeout(timeout);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(json){
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve(json);
+    };
+    script.onerror = function(){ if(!done){ done=true; cleanup(); reject(new Error('script load error')); } };
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+
+function loadSheetByGidJSONP(gid, key){
+  return new Promise((resolve, reject)=>{
+    const cbName = 'gvizCb_' + key + '_' + Date.now();
+    const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?gid='+gid+'&tqx=out:json;responseHandler:'+cbName;
     const script = document.createElement('script');
     let done = false;
     const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
@@ -315,12 +344,17 @@ async function fetchAll(){
       })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
     }
   }
-  // FD separately - may error
+  // FD separately - fetched by gid (see FD_GID comment above), may still error
   try{
-    const json = await loadSheetJSONP(SHEETS.fd, 'fd');
+    const json = await loadSheetByGidJSONP(FD_GID, 'fd');
     const {rows} = gvizToRows(json);
-    const fdRows = rows.filter(r=>r[0] && r[0] !== '#REF!');
-    if(fdRows.length===0) throw new Error('Sheet FD trống hoặc lỗi công thức (#REF!)');
+    const fdRows = rows.filter(r=>r[1] && !isAggregateRow(r[1])).map(r=>({
+      office: (r[1]||'').toString().trim(),
+      date: parseDate((r[2]||'').toString().split(',')[0]),
+      vol: toNum(r[3]),
+      ret: toNum(r[4]),
+    })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
+    if(fdRows.length===0) throw new Error('Sheet FD không có dữ liệu hợp lệ.');
     results['fd'] = fdRows;
     FD_STATUS = 'ok';
   }catch(e){
@@ -586,18 +620,77 @@ function buildTrendPivotTable(rows, tblId, anId, label){
   anEl.innerHTML = html;
 }
 
-// ---------- Dashboard 3: FD ----------
-function buildFD(){
+// ---------- Dashboard 3: FD (so sánh 2 ngày gần nhất) ----------
+function buildFD(rows){
   const el = document.getElementById('fd-content');
-  if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0){
+  if(FD_STATUS !== 'ok'){
     el.innerHTML = '<div class="err-box">'
       + '<b>⚠️ Không đọc được dữ liệu sheet "FD".</b><br>'
-      + 'Ô đầu tiên của sheet trả về lỗi công thức <code>#REF!</code> (tham chiếu bị hỏng), phía sau không còn dữ liệu nào khác.'
-      + ' Vui lòng kiểm tra và sửa công thức trong sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.'
+      + 'Vui lòng kiểm tra sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.'
       + '</div>';
     return;
   }
-  el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
+  const dates = lastNDates(rows, 2);
+  if(dates.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu trong khoảng lọc hiện tại.</div>';
+    return;
+  }
+  const last = dates[dates.length-1];
+  const prev = dates.length>1 ? dates[dates.length-2] : null;
+  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
+  const byOD = {}; offices.forEach(o=>byOD[o]={});
+  rows.forEach(r=>{ byOD[r.office][r.date] = r; });
+
+  let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
+  if(prev) head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(prev)+'</th>';
+  head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(last)+'</th>';
+  head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">Chênh lệch</th></tr>';
+  head += '<tr><th class="stt-cell"></th><th class="office-cell"></th>';
+  if(prev) head += '<th style="border-left:2px solid var(--border);">%vol</th><th>%Return</th>';
+  head += '<th style="border-left:2px solid var(--border);">%vol</th><th>%Return</th>';
+  head += '<th style="border-left:2px solid var(--border);">Δ%vol</th><th>Δ%Return</th></tr>';
+
+  let body = '';
+  offices.forEach((o, idx)=>{
+    const p = prev ? byOD[o][prev] : null;
+    const l = byOD[o][last];
+    const dVol = (l && p) ? (l.vol - p.vol) : null;
+    const dRet = (l && p) ? (l.ret - p.ret) : null;
+    const bigChange = (dVol!==null && Math.abs(dVol)>0.10) || (dRet!==null && Math.abs(dRet)>0.10);
+    body += '<tr'+(bigChange ? ' style="background:rgba(220,38,38,0.14);"' : '')+'>';
+    body += '<td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(o)+'</td>';
+    if(prev) body += '<td style="border-left:2px solid var(--border);">'+(p?fmtPct(p.vol):'-')+'</td><td>'+(p?fmtPct(p.ret):'-')+'</td>';
+    body += '<td style="border-left:2px solid var(--border);">'+(l?fmtPct(l.vol):'-')+'</td><td>'+(l?fmtPct(l.ret):'-')+'</td>';
+    body += '<td style="border-left:2px solid var(--border);'+(dVol!==null && Math.abs(dVol)>0.10 ? 'color:var(--red);font-weight:700;' : '')+'">'+(dVol!==null ? ((dVol>=0?'+':'')+(dVol*100).toFixed(1)+'đ') : '-')+'</td>';
+    body += '<td style="'+(dRet!==null && Math.abs(dRet)>0.10 ? 'color:var(--red);font-weight:700;' : '')+'">'+(dRet!==null ? ((dRet>=0?'+':'')+(dRet*100).toFixed(1)+'đ') : '-')+'</td>';
+    body += '</tr>';
+  });
+
+  let html = '<div class="scroll-wrap"><table>'+head+body+'</table></div>';
+  html += '<div class="analysis" id="an-fd"></div>';
+  el.innerHTML = html;
+
+  const withDelta = offices.map(o=>{
+    const p = prev ? byOD[o][prev] : null, l = byOD[o][last];
+    return {office:o, dRet: (l && p) ? (l.ret - p.ret) : null};
+  }).filter(x=>x.dRet!==null);
+
+  const anEl = document.getElementById('an-fd');
+  if(!prev || withDelta.length===0){
+    anEl.innerHTML = 'Chưa đủ 2 ngày dữ liệu trong khoảng lọc để so sánh.';
+    return;
+  }
+  withDelta.sort((a,b)=>a.dRet-b.dRet);
+  const worst = withDelta[0], best = withDelta[withDelta.length-1];
+  let txt = 'So sánh <b>'+dmy(prev)+'</b> → <b>'+dmy(last)+'</b>: ';
+  txt += 'Tăng %Return nhiều nhất: <b class="best">'+officeLabel(best.office)+'</b> ('+(best.dRet>=0?'+':'')+(best.dRet*100).toFixed(1)+'đ). ';
+  txt += 'Giảm %Return nhiều nhất: <b class="worst">'+officeLabel(worst.office)+'</b> ('+(worst.dRet>=0?'+':'')+(worst.dRet*100).toFixed(1)+'đ).';
+  const bigCount = offices.filter(o=>{
+    const p = byOD[o][prev], l = byOD[o][last];
+    return l && p && (Math.abs(l.ret-p.ret)>0.10 || Math.abs(l.vol-p.vol)>0.10);
+  }).length;
+  if(bigCount>0) txt += ' Có <b class="worst">'+bigCount+'</b> bưu cục chênh lệch trên 10% (bôi đỏ trong bảng).';
+  anEl.innerHTML = txt;
 }
 
 // ---------- Detailed trend charts (SVG, no external libs) ----------
@@ -785,7 +878,7 @@ function renderAll(){
   buildGtcPivotTable(g2, 'tbl-gtc-tts', 'an-gtc-tts');
   buildTrendPivotTable(o1, 'tbl-odr', 'an-odr', 'ODR');
   buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
-  buildFD();
+  buildFD(filterRows(DATA.fd));
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
