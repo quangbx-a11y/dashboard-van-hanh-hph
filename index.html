@@ -203,6 +203,7 @@ function parseDate(t){
   return m ? m[1] : s;
 }
 function toNum(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
+function isAggregateRow(office){ return /^(grand\s*)?total$/i.test((office||'').trim()); }
 
 async function fetchAll(){
   const results = {};
@@ -216,7 +217,7 @@ async function fetchAll(){
     const json = await loadSheetJSONP(sheetName, key);
     const {rows} = gvizToRows(json);
     if(key==='gtc_tong' || key==='gtc_tts'){
-      results[key] = rows.filter(r=>r[1]).map(r=>({
+      results[key] = rows.filter(r=>r[1] && !isAggregateRow(r[1])).map(r=>({
         office: (r[1]||'').toString().trim(),
         group: (r[2]||'').toString().trim(),
         date: parseDate(r[3]),
@@ -225,7 +226,7 @@ async function fetchAll(){
         pct_gtc: toNum(r[6]),
       })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
     } else {
-      results[key] = rows.filter(r=>r[1]).map(r=>({
+      results[key] = rows.filter(r=>r[1] && !isAggregateRow(r[1])).map(r=>({
         office: (r[1]||'').toString().trim(),
         date: parseDate(r[2]),
         count: toNum(r[3]),
