@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Vận Hành Khu Vực</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --panel2:#1a2332; --border:#2a3648;
+    --text:#e5e9f0; --muted:#93a2b8; --accent:#3aa0ff; --green:#22c55e;
+    --yellow:#eab308; --red:#ef4444; --good:#16a34a; --bad:#dc2626;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:sticky;top:0;background:var(--bg);z-index:50;}
+  header h1{font-size:20px;margin:0;}
+  header .sub{color:var(--muted);font-size:13px;margin-top:2px;}
+  .btn{background:var(--accent);color:#04121f;border:none;padding:10px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:14px;}
+  .btn:hover{opacity:0.9;}
+  .btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text);}
+  .btn:disabled{opacity:0.5;cursor:wait;}
+  #status{font-size:12px;color:var(--muted);margin-top:4px;}
+  nav{display:flex;gap:8px;padding:0 24px;border-bottom:1px solid var(--border);}
+  nav button{background:none;border:none;color:var(--muted);padding:14px 6px;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;}
+  nav button.active{color:var(--text);border-bottom-color:var(--accent);font-weight:600;}
+  .wrap{padding:20px 24px 60px;max-width:1400px;margin:0 auto;}
+  .filters{display:flex;gap:20px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;align-items:flex-start;}
+  .filters .group{display:flex;flex-direction:column;gap:6px;}
+  .filters label.title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .filters input[type=date]{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:13px;}
+  .office-list{display:flex;flex-wrap:wrap;gap:6px;max-width:520px;}
+  .office-chip{border:1px solid var(--border);background:var(--panel2);color:var(--muted);padding:5px 10px;border-radius:16px;font-size:12px;cursor:pointer;user-select:none;}
+  .office-chip.on{background:var(--accent);color:#04121f;border-color:var(--accent);font-weight:600;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:24px;}
+  .panel h2{margin:0 0 4px;font-size:16px;}
+  .panel .desc{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
+  table{border-collapse:collapse;width:100%;font-size:13px;}
+  table.scroll-wrap{display:block;overflow-x:auto;}
+  th,td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;}
+  th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel);font-size:11.5px;text-transform:uppercase;}
+  td.office-cell,th.office-cell{text-align:left;position:sticky;left:0;background:var(--panel);font-weight:600;z-index:2;}
+  tr:hover td{background:rgba(255,255,255,0.03);}
+  tr:hover td.office-cell{background:#16202f;}
+  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:700;}
+  .analysis{margin-top:12px;padding:12px 14px;background:var(--panel2);border-radius:8px;font-size:13px;line-height:1.6;}
+  .analysis b.best{color:var(--green);}
+  .analysis b.worst{color:var(--red);}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--border);padding:2px 8px;border-radius:6px;font-size:11px;color:var(--muted);margin-left:6px;}
+  .heat{color:#04121f;font-weight:600;border-radius:4px;}
+  .placeholder{padding:40px;text-align:center;color:var(--muted);}
+  .placeholder .icon{font-size:36px;margin-bottom:10px;}
+  .err-box{background:#2a1414;border:1px solid #5c2323;color:#fca5a5;padding:16px 18px;border-radius:10px;font-size:13px;line-height:1.7;}
+  .hidden{display:none !important;}
+  .refresh-row{display:flex;align-items:center;gap:10px;}
+  .delta-up{color:var(--green);}
+  .delta-down{color:var(--red);}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Dashboard Vận Hành Khu Vực — Bùi Xuân Quang (Hải Phòng)</h1>
+    <div class="sub">Nguồn: Google Sheet "Báo cáo vận hành khu vực" — cập nhật trực tiếp</div>
+    <div id="status">Đang tải dữ liệu...</div>
+  </div>
+  <div class="refresh-row">
+    <button class="btn secondary" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
+  </div>
+</header>
+<nav id="tabs">
+  <button data-tab="d1" class="active">Dashboard 1 · GTC</button>
+  <button data-tab="d2">Dashboard 2 · ODR / OPR</button>
+  <button data-tab="d3">Dashboard 3 · FD</button>
+</nav>
+<div class="wrap">
+  <div class="filters">
+    <div class="group">
+      <label class="title">Từ ngày</label>
+      <input type="date" id="fromDate">
+    </div>
+    <div class="group">
+      <label class="title">Đến ngày</label>
+      <input type="date" id="toDate">
+    </div>
+    <div class="group" style="flex:1;min-width:280px;">
+      <label class="title">Bưu cục <span id="officeToggleAll" style="cursor:pointer;color:var(--accent);text-decoration:underline;font-weight:normal;">(chọn tất cả)</span></label>
+      <div class="office-list" id="officeList"></div>
+    </div>
+  </div>
+
+  <div id="tab-d1">
+    <div class="panel">
+      <h2>Bảng 1 — Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
+      <div class="desc">Chi tiết theo nhóm hàng: Ca 1, Ca 2, Hàng tồn — kèm volume từng nhóm và tổng sản lượng Total.</div>
+      <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
+      <div class="analysis" id="an-gtc-tong"></div>
+    </div>
+    <div class="panel">
+      <h2>Bảng 2 — Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
+      <div class="desc">Chi tiết theo nhóm hàng: Ca 1, Ca 2, Hàng tồn — kèm volume từng nhóm và tổng sản lượng Total.</div>
+      <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
+      <div class="analysis" id="an-gtc-tts"></div>
+    </div>
+  </div>
+
+  <div id="tab-d2" class="hidden">
+    <div class="panel">
+      <h2>Bảng 1 — ODR TTS (Ontime giao) theo ngày</h2>
+      <div class="desc">Màu ô: xanh = tăng so với ngày trước, đỏ = giảm so với ngày trước. Số trong ô là % on-time.</div>
+      <div class="scroll-wrap"><table id="tbl-odr"></table></div>
+      <div class="analysis" id="an-odr"></div>
+    </div>
+    <div class="panel">
+      <h2>Bảng 2 — OPR TTS (Ontime lấy) theo ngày</h2>
+      <div class="desc">Màu ô: xanh = tăng so với ngày trước, đỏ = giảm so với ngày trước. Số trong ô là % on-time.</div>
+      <div class="scroll-wrap"><table id="tbl-opr"></table></div>
+      <div class="analysis" id="an-opr"></div>
+    </div>
+  </div>
+
+  <div id="tab-d3" class="hidden">
+    <div class="panel">
+      <h2>FD theo bưu cục — so sánh 2 ngày gần nhất</h2>
+      <div class="desc">Bôi đỏ những bưu cục có chênh lệch trên 10%.</div>
+      <div id="fd-content"></div>
+    </div>
+  </div>
+
+  <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
+</div>
+
+<script>
+const SPREADSHEET_ID = '1ZlISgSd_GSQLIwWP1QU8aNFXQye05Aa58SQfZNTMNAI';
+const SHEETS = {
+  gtc_tong: 'GTC Tổng Ca 1 + 2',
+  gtc_tts: 'GTC TTS Ca 1 + 2',
+  odr_tts: 'ODR TTS',
+  opr_tts: 'OPR TTS',
+  fd: 'FD'
+};
+
+// Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
+const FALLBACK_DATA = {"gtc_tong":[],"gtc_tts":[],"odr_tts":[],"opr_tts":[]};
+const FALLBACK_TIME = "chưa có snapshot - dùng dữ liệu trực tiếp";
+
+let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
+let LAST_UPDATED = FALLBACK_TIME;
+let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+
+const GROUP_LABEL = {'Hàng Mới Ca 1':'Ca 1','Hàng Mới Ca 2':'Ca 2','Hàng Tồn':'Tồn'};
+const GROUP_ORDER = ['Hàng Mới Ca 1','Hàng Mới Ca 2','Hàng Tồn'];
+
+function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
+function fmtNum(x){ return Math.round(x).toLocaleString('vi-VN'); }
+
+function pctColor(p){
+  // p in [0,1] -> red..yellow..green
+  if(p>=0.85) return '#16a34a';
+  if(p>=0.70) return '#65a30d';
+  if(p>=0.55) return '#ca8a04';
+  if(p>=0.40) return '#ea580c';
+  return '#dc2626';
+}
+
+// ---------- CSV / JSONP parsing ----------
+function loadSheetJSONP(sheetName, key){
+  return new Promise((resolve, reject)=>{
+    const cbName = 'gvizCb_' + key + '_' + Date.now();
+    const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?sheet='+encodeURIComponent(sheetName)+'&tqx=out:json;responseHandler='+cbName;
+    const script = document.createElement('script');
+    let done = false;
+    const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
+    function cleanup(){
+      clearTimeout(timeout);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(json){
+      if(done) return;
+      done = true;
+      cleanup();
+      resolve(json);
+    };
+    script.onerror = function(){ if(!done){ done=true; cleanup(); reject(new Error('script load error')); } };
+    script.src = url;
+    document.body.appendChild(script);
+  });
+}
+
+function gvizToRows(json){
+  if(!json || json.status === 'error') throw new Error((json && json.errors && json.errors[0] && json.errors[0].message) || 'gviz error');
+  const cols = json.table.cols.map(c=>c.label);
+  const rows = json.table.rows.map(r => r.c.map(c => c ? (c.v===null||c.v===undefined? '' : c.v) : ''));
+  return {cols, rows};
+}
+
+function parseDate(t){
+  if(t===null||t===undefined) return '';
+  const s = String(t);
+  const m = s.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+function toNum(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
+
+async function fetchAll(){
+  const results = {};
+  let fdOk = true, fdError = null;
+  const specs = [
+    ['gtc_tong', SHEETS.gtc_tong],
+    ['gtc_tts', SHEETS.gtc_tts],
+    ['odr_tts', SHEETS.odr_tts],
+    ['opr_tts', SHEETS.opr_tts],
+  ];
+  for(const [key, sheetName] of specs){
+    const json = await loadSheetJSONP(sheetName, key);
+    const {rows} = gvizToRows(json);
+    if(key==='gtc_tong' || key==='gtc_tts'){
+      results[key] = rows.filter(r=>r[1]).map(r=>({
+        office: (r[1]||'').toString().trim(),
+        group: (r[2]||'').toString().trim(),
+        date: parseDate(r[3]),
+        volume: toNum(r[4]),
+        pct_gtc: toNum(r[6]),
+      })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
+    } else {
+      results[key] = rows.filter(r=>r[1]).map(r=>({
+        office: (r[1]||'').toString().trim(),
+        date: parseDate(r[2]),
+        count: toNum(r[3]),
+        pct: toNum(r[4]),
+      })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
+    }
+  }
+  // FD separately - may error
+  try{
+    const json = await loadSheetJSONP(SHEETS.fd, 'fd');
+    const {rows} = gvizToRows(json);
+    const fdRows = rows.filter(r=>r[0] && r[0] !== '#REF!');
+    if(fdRows.length===0) throw new Error('Sheet FD trống hoặc lỗi công thức (#REF!)');
+    results['fd'] = fdRows;
+    FD_STATUS = 'ok';
+  }catch(e){
+    FD_STATUS = 'error';
+    results['fd'] = [];
+  }
+  return results;
+}
+
+// ---------- Filters ----------
+function allOffices(){
+  const set = new Set();
+  ['gtc_tong','gtc_tts','odr_tts','opr_tts'].forEach(k=>DATA[k].forEach(r=>set.add(r.office)));
+  return Array.from(set).sort();
+}
+function allDates(){
+  const set = new Set();
+  ['gtc_tong','gtc_tts','odr_tts','opr_tts'].forEach(k=>DATA[k].forEach(r=>set.add(r.date)));
+  return Array.from(set).sort();
+}
+
+let selectedOffices = new Set();
+let fromDate=null, toDate=null;
+
+function initFilters(){
+  const dates = allDates();
+  fromDate = dates[0]; toDate = dates[dates.length-1];
+  document.getElementById('fromDate').value = fromDate;
+  document.getElementById('toDate').value = toDate;
+  document.getElementById('fromDate').min = dates[0]; document.getElementById('fromDate').max = dates[dates.length-1];
+  document.getElementById('toDate').min = dates[0]; document.getElementById('toDate').max = dates[dates.length-1];
+
+  const offices = allOffices();
+  selectedOffices = new Set(offices);
+  const list = document.getElementById('officeList');
+  list.innerHTML = '';
+  offices.forEach(o=>{
+    const chip = document.createElement('div');
+    chip.className = 'office-chip on';
+    chip.textContent = o.replace('(HPH) ','');
+    chip.dataset.office = o;
+    chip.onclick = ()=>{
+      if(selectedOffices.has(o)){ selectedOffices.delete(o); chip.classList.remove('on'); }
+      else { selectedOffices.add(o); chip.classList.add('on'); }
+      renderAll();
+    };
+    list.appendChild(chip);
+  });
+  document.getElementById('officeToggleAll').onclick = ()=>{
+    if(selectedOffices.size === offices.length){ selectedOffices.clear(); }
+    else { offices.forEach(o=>selectedOffices.add(o)); }
+    document.querySelectorAll('.office-chip').forEach(c=>{
+      c.classList.toggle('on', selectedOffices.has(c.dataset.office));
+    });
+    renderAll();
+  };
+  document.getElementById('fromDate').onchange = e=>{ fromDate = e.target.value; renderAll(); };
+  document.getElementById('toDate').onchange = e=>{ toDate = e.target.value; renderAll(); };
+}
+
+function inRange(d){ return d>=fromDate && d<=toDate; }
+function filterRows(rows){ return rows.filter(r=>selectedOffices.has(r.office) && inRange(r.date)); }
+
+// ---------- Dashboard 1: GTC tables ----------
+function buildGtcTable(rows, tblId, anId){
+  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
+  const table = document.getElementById(tblId);
+  let head = '<tr><th class="office-cell">Bưu cục</th>';
+  GROUP_ORDER.forEach(g=>{ head += `<th>${GROUP_LABEL[g]}<br><span style="font-weight:400">Volume</span></th><th>${GROUP_LABEL[g]}<br><span style="font-weight:400">%GTC</span></th>`; });
+  head += '<th>Total<br>Volume</th><th>%GTC<br>Chung</th></tr>';
+  let body = '';
+  const officeStats = [];
+  offices.forEach(o=>{
+    const orows = rows.filter(r=>r.office===o);
+    let rowHtml = `<tr><td class="office-cell">${o.replace('(HPH) ','')}</td>`;
+    let totalVol = 0, totalWeighted = 0;
+    GROUP_ORDER.forEach(g=>{
+      const grows = orows.filter(r=>r.group===g);
+      const vol = grows.reduce((s,r)=>s+r.volume,0);
+      const weighted = grows.reduce((s,r)=>s+r.volume*r.pct_gtc,0);
+      const pct = vol>0 ? weighted/vol : null;
+      totalVol += vol; totalWeighted += weighted;
+      rowHtml += `<td>${vol>0?fmtNum(vol):'-'}</td><td>${pct!==null?`<span class="heat" style="background:${pctColor(pct)};padding:2px 6px;">${fmtPct(pct)}</span>`:'-'}</td>`;
+    });
+    const overallPct = totalVol>0 ? totalWeighted/totalVol : null;
+    rowHtml += `<td><b>${fmtNum(totalVol)}</b></td><td>${overallPct!==null?`<span class="heat" style="background:${pctColor(overallPct)};padding:3px 8px;font-weight:700;">${fmtPct(overallPct)}</span>`:'-'}</td></tr>`;
+    body += rowHtml;
+    if(overallPct!==null) officeStats.push({office:o, pct:overallPct, vol:totalVol});
+  });
+  table.innerHTML = head + body;
+
+  const anEl = document.getElementById(anId);
+  if(officeStats.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+  officeStats.sort((a,b)=>b.pct-a.pct);
+  const best = officeStats[0], worst = officeStats[officeStats.length-1];
+  let html = `Tổng cộng <b>${officeStats.length}</b> bưu cục có dữ liệu trong khoảng ${fromDate} → ${toDate}. `;
+  html += `Bưu cục tốt nhất: <b class="best">${best.office.replace('(HPH) ','')}</b> (${fmtPct(best.pct)}, volume ${fmtNum(best.vol)}). `;
+  if(officeStats.length>1) html += `Bưu cục cần cải thiện nhất: <b class="worst">${worst.office.replace('(HPH) ','')}</b> (${fmtPct(worst.pct)}, volume ${fmtNum(worst.vol)}).`;
+  anEl.innerHTML = html;
+}
+
+// ---------- Dashboard 2: ODR / OPR pivot heatmap ----------
+function buildTrendTable(rows, tblId, anId){
+  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
+  const dates = Array.from(new Set(rows.map(r=>r.date))).sort();
+  const table = document.getElementById(tblId);
+  let head = '<tr><th class="office-cell">Bưu cục</th>';
+  dates.forEach(d=>{ head += `<th>${d.slice(5)}</th>`; });
+  head += '<th>TB</th><th>Xu hướng</th></tr>';
+  let body = '';
+  const officeStats = [];
+  offices.forEach(o=>{
+    const byDate = {};
+    rows.filter(r=>r.office===o).forEach(r=>{ byDate[r.date]=r.pct; });
+    let rowHtml = `<tr><td class="office-cell">${o.replace('(HPH) ','')}</td>`;
+    let prev = null;
+    let sum=0,n=0;
+    const seq = [];
+    dates.forEach(d=>{
+      const v = byDate[d];
+      if(v===undefined){ rowHtml += '<td>-</td>'; return; }
+      seq.push(v);
+      let arrow = '';
+      if(prev!==null){
+        const delta = v-prev;
+        if(delta>0.001) arrow = `<span class="delta-up"> ▲</span>`;
+        else if(delta<-0.001) arrow = `<span class="delta-down"> ▼</span>`;
+      }
+      rowHtml += `<td><span class="heat" style="background:${pctColor(v)};padding:2px 6px;">${(v*100).toFixed(0)}%</span>${arrow}</td>`;
+      prev = v; sum += v; n++;
+    });
+    const avg = n>0 ? sum/n : null;
+    let trendHtml = '-';
+    if(seq.length>=2){
+      const delta = seq[seq.length-1]-seq[0];
+      const cls = delta>=0 ? 'delta-up' : 'delta-down';
+      const sign = delta>=0 ? '+' : '';
+      trendHtml = `<span class="${cls}">${sign}${(delta*100).toFixed(1)}đ</span>`;
+    }
+    rowHtml += `<td><b>${avg!==null?fmtPct(avg):'-'}</b></td><td>${trendHtml}</td></tr>`;
+    body += rowHtml;
+    if(avg!==null) officeStats.push({office:o, avg, last: seq.length?seq[seq.length-1]:null, first: seq.length?seq[0]:null});
+  });
+  table.innerHTML = head + body;
+
+  const anEl = document.getElementById(anId);
+  if(officeStats.length===0){ anEl.innerHTML = 'Không có dữ liệu trong khoảng lọc hiện tại.'; return; }
+  officeStats.sort((a,b)=>b.avg-a.avg);
+  const best = officeStats[0], worst = officeStats[officeStats.length-1];
+  let html = `Trung bình khoảng lọc: bưu cục tốt nhất <b class="best">${best.office.replace('(HPH) ','')}</b> (${fmtPct(best.avg)}), `;
+  html += `bưu cục thấp nhất <b class="worst">${worst.office.replace('(HPH) ','')}</b> (${fmtPct(worst.avg)}). `;
+  const declining = officeStats.filter(o=>o.first!==null && o.last!==null && (o.last-o.first) < -0.05).sort((a,b)=>(a.last-a.first)-(b.last-b.first));
+  if(declining.length){
+    html += `Đang giảm mạnh nhất trong kỳ: <b class="worst">${declining[0].office.replace('(HPH) ','')}</b> (${(declining[0].first*100).toFixed(1)}% → ${(declining[0].last*100).toFixed(1)}%).`;
+  }
+  anEl.innerHTML = html;
+}
+
+// ---------- Dashboard 3: FD ----------
+function buildFD(){
+  const el = document.getElementById('fd-content');
+  if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0){
+    el.innerHTML = `<div class="err-box">
+      <b>⚠️ Không đọc được dữ liệu sheet "FD".</b><br>
+      Ô đầu tiên của sheet trả về lỗi công thức <code>#REF!</code> (tham chiếu bị hỏng), phía sau không còn dữ liệu nào khác.
+      Vui lòng kiểm tra và sửa công thức trong sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.
+    </div>`;
+    return;
+  }
+  // If FD data becomes available, expect columns: office, date, value (best effort — adjust to real header once fixed)
+  el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
+}
+
+function renderAll(){
+  const g1 = filterRows(DATA.gtc_tong);
+  const g2 = filterRows(DATA.gtc_tts);
+  const o1 = filterRows(DATA.odr_tts);
+  const o2 = filterRows(DATA.opr_tts);
+  buildGtcTable(g1, 'tbl-gtc-tong', 'an-gtc-tong');
+  buildGtcTable(g2, 'tbl-gtc-tts', 'an-gtc-tts');
+  buildTrendTable(o1, 'tbl-odr', 'an-odr');
+  buildTrendTable(o2, 'tbl-opr', 'an-opr');
+  buildFD();
+}
+
+// ---------- Tabs ----------
+document.getElementById('tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-tab]');
+  if(!btn) return;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['d1','d2','d3'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('hidden', t!==btn.dataset.tab);
+  });
+});
+
+// ---------- Refresh ----------
+document.getElementById('btnRefresh').onclick = async ()=>{
+  const btn = document.getElementById('btnRefresh');
+  const statusEl = document.getElementById('status');
+  btn.disabled = true; btn.textContent = '⟳ Đang cập nhật...';
+  statusEl.textContent = 'Đang tải dữ liệu mới từ Google Sheet...';
+  try{
+    const fresh = await fetchAll();
+    DATA = fresh;
+    LAST_UPDATED = new Date().toLocaleString('vi-VN');
+    const offices = allOffices();
+    // preserve selection where possible
+    const stillValid = new Set(Array.from(selectedOffices).filter(o=>offices.includes(o)));
+    initFilters();
+    if(stillValid.size){
+      selectedOffices = new Set(offices.filter(o=>stillValid.has(o)));
+      document.querySelectorAll('.office-chip').forEach(c=>c.classList.toggle('on', selectedOffices.has(c.dataset.office)));
+    }
+    renderAll();
+    statusEl.textContent = 'Cập nhật lúc: ' + LAST_UPDATED + ' (trực tiếp từ Google Sheet)';
+  }catch(e){
+    statusEl.textContent = 'Lỗi khi tải dữ liệu mới: ' + e.message + '. Đang hiển thị dữ liệu gần nhất.';
+  }finally{
+    btn.disabled = false; btn.textContent = '⟳ Cập nhật dữ liệu';
+  }
+};
+
+// ---------- Init ----------
+(async function init(){
+  initFilters();
+  renderAll();
+  document.getElementById('status').textContent = 'Snapshot lúc build: ' + LAST_UPDATED + '. Đang thử tải dữ liệu trực tiếp...';
+  try{
+    const fresh = await fetchAll();
+    DATA = fresh;
+    LAST_UPDATED = new Date().toLocaleString('vi-VN');
+    initFilters();
+    renderAll();
+    document.getElementById('status').textContent = 'Cập nhật lúc: ' + LAST_UPDATED + ' (trực tiếp từ Google Sheet)';
+  }catch(e){
+    document.getElementById('status').textContent = 'Không tải được dữ liệu trực tiếp (' + e.message + '). Đang hiển thị snapshot lúc build: ' + LAST_UPDATED;
+  }
+})();
+</script>
+</body>
+</html>
