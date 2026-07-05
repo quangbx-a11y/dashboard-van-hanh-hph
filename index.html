@@ -146,7 +146,7 @@
     <div id="view-gtc-tong" class="view hidden">
       <div class="panel">
         <h2>Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
-        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC, %Return, Vol đơn trả. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
         <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
         <div class="analysis" id="an-gtc-tong"></div>
         <div class="chart-wrap hidden" id="chart-gtc-tong"></div>
@@ -156,7 +156,7 @@
     <div id="view-gtc-tts" class="view hidden">
       <div class="panel">
         <h2>Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
-        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC, %Return, Vol đơn trả. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
         <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
         <div class="analysis" id="an-gtc-tts"></div>
         <div class="chart-wrap hidden" id="chart-gtc-tts"></div>
@@ -202,7 +202,7 @@ const SHEETS = {
   gtc_tts: 'GTC TTS Ca 1 + 2',
   odr_tts: 'ODR TTS',
   opr_tts: 'OPR TTS',
-  fd: 'FD'
+  fd: 886614472
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -230,7 +230,8 @@ function pctColor(p){
 function loadSheetJSONP(sheetName, key){
   return new Promise((resolve, reject)=>{
     const cbName = 'gvizCb_' + key + '_' + Date.now();
-    const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?sheet='+encodeURIComponent(sheetName)+'&tqx=out:json;responseHandler:'+cbName;
+    const param = (typeof sheetName === 'number') ? ('gid='+sheetName) : ('sheet='+encodeURIComponent(sheetName));
+    const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?'+param+'&tqx=out:json;responseHandler:'+cbName;
     const script = document.createElement('script');
     let done = false;
     const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
@@ -301,8 +302,17 @@ async function fetchAll(){
   try{
     const json = await loadSheetJSONP(SHEETS.fd, 'fd');
     const {rows} = gvizToRows(json);
-    const fdRows = rows.filter(r=>r[0] && r[0] !== '#REF!');
-    if(fdRows.length===0) throw new Error('Sheet FD trống hoặc lỗi công thức (#REF!)');
+    const fdRows = rows.filter(r=>r[1] && r[0] !== '#REF!').map(r=>{
+      const timeStr = (r[2]||'').toString();
+      const datePart = timeStr.split(',')[0].trim();
+      return {
+        office: (r[1]||'').toString().trim(),
+        date: datePart,
+        pctVol: toNum(r[3]),
+        pctReturn: toNum(r[4]),
+      };
+    }).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
+    if(fdRows.length===0) throw new Error('Sheet FD trống hoặc không đúng định dạng');
     results['fd'] = fdRows;
     FD_STATUS = 'ok';
   }catch(e){
@@ -575,6 +585,15 @@ function buildTrendPivotTable(rows, tblId, anId, label){
 }
 
 // ---------- Dashboard 3: FD ----------
+function volLookup(){
+  const map = {};
+  DATA.gtc_tong.forEach(r=>{
+    const k = r.office+'|'+r.date;
+    map[k] = (map[k]||0) + r.volume;
+  });
+  return map;
+}
+
 function buildFD(){
   const el = document.getElementById('fd-content');
   if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0){
@@ -585,7 +604,70 @@ function buildFD(){
       + '</div>';
     return;
   }
-  el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
+  const rows = filterRows(DATA.fd);
+  if(rows.length===0){ el.innerHTML = '<div class="placeholder">Không có dữ liệu FD trong khoảng lọc hiện tại.</div>'; return; }
+  const dates = lastNDates(rows, 2);
+  if(dates.length===0){ el.innerHTML = '<div class="placeholder">Không có dữ liệu FD trong khoảng lọc hiện tại.</div>'; return; }
+  const prevDate = dates.length>1 ? dates[0] : null;
+  const lastDate = dates[dates.length-1];
+  const vol = volLookup();
+
+  const offices = Array.from(new Set(rows.map(r=>r.office)));
+  const byOfficeDate = {};
+  offices.forEach(o=>byOfficeDate[o]={});
+  rows.forEach(r=>{ byOfficeDate[r.office][r.date] = r; });
+
+  function traCount(o, d){
+    const r = byOfficeDate[o][d];
+    if(!r) return null;
+    const v = vol[o+'|'+d] || 0;
+    return {pctVol:r.pctVol, pctReturn:r.pctReturn, tra: Math.round(v*r.pctReturn)};
+  }
+
+  const officeRows = offices.map(o=>{
+    const last = traCount(o, lastDate);
+    const prev = prevDate ? traCount(o, prevDate) : null;
+    const delta = (last && prev) ? (last.pctReturn - prev.pctReturn) : null;
+    return {office:o, last, prev, delta, sortVal: last ? last.pctReturn : -1};
+  });
+  officeRows.sort((a,b)=>b.sortVal-a.sortVal);
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
+  if(prevDate) html += '<th colspan="3" style="text-align:center;border-left:2px solid var(--border);">'+dmy(prevDate)+'</th>';
+  html += '<th colspan="3" style="text-align:center;border-left:2px solid var(--border);">'+dmy(lastDate)+'</th><th style="border-left:2px solid var(--border);">Chênh lệch %Return</th></tr>';
+  html += '<tr><th class="stt-cell"></th><th class="office-cell"></th>';
+  if(prevDate) html += '<th style="border-left:2px solid var(--border);">%Vol</th><th>%Return</th><th>Số đơn trả</th>';
+  html += '<th style="border-left:2px solid var(--border);">%Vol</th><th>%Return</th><th>Số đơn trả</th><th style="border-left:2px solid var(--border);"></th></tr>';
+
+  officeRows.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    if(prevDate){
+      if(row.prev){
+        html += '<td style="border-left:2px solid var(--border);">'+fmtPct(row.prev.pctVol)+'</td>';
+        html += '<td>'+fmtPct(row.prev.pctReturn)+'</td>';
+        html += '<td>'+fmtNum(row.prev.tra)+'</td>';
+      } else {
+        html += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td>';
+      }
+    }
+    if(row.last){
+      html += '<td style="border-left:2px solid var(--border);">'+fmtPct(row.last.pctVol)+'</td>';
+      html += '<td>'+fmtPct(row.last.pctReturn)+'</td>';
+      html += '<td>'+fmtNum(row.last.tra)+'</td>';
+    } else {
+      html += '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td>';
+    }
+    if(row.delta!==null){
+      const bad = Math.abs(row.delta) > 0.10;
+      const sign = row.delta>=0 ? '+' : '';
+      html += '<td style="border-left:2px solid var(--border);'+(bad?'color:#fff;background:var(--bad);font-weight:700;':'')+'">'+sign+fmtPct(row.delta)+'</td>';
+    } else {
+      html += '<td style="border-left:2px solid var(--border);">-</td>';
+    }
+    html += '</tr>';
+  });
+  html += '</table>';
+  el.innerHTML = html;
 }
 
 // ---------- Detailed trend charts (SVG, no external libs) ----------
@@ -783,3 +865,5 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 <!-- redeploy-trigger-v3 -->
 
 <!-- redeploy-trigger-v4 -->
+
+<!-- redeploy-trigger-v5 -->
