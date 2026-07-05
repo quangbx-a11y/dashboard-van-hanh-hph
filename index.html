@@ -31,15 +31,6 @@
   .sb-btn-refresh:disabled{opacity:.5;cursor:wait;}
   .sb-btn-analysis{background:linear-gradient(135deg,#7c3aed,#2563eb);}
   .sb-btn-analysis:disabled{opacity:.35;cursor:not-allowed;}
-  .sb-btn-telegram{background:#229ED9;}
-  .sb-btn-telegram:disabled{opacity:.5;cursor:wait;}
-  .sb-btn-tgconfig{background:transparent;border:1px solid var(--border);color:var(--muted);font-weight:600;}
-  .sb-btn-tgconfig:hover{color:var(--text);}
-  .sb-btn-tgsave{background:var(--accent);color:#04121f;}
-  .tg-panel{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:2px;display:flex;flex-direction:column;gap:6px;}
-  .tg-panel label{font-size:11px;color:var(--muted);}
-  .tg-panel input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:6px;font-size:12px;width:100%;}
-  .tg-note{font-size:10.5px;color:var(--muted);line-height:1.4;}
   .main{flex:1;min-width:0;padding:22px 28px 60px;max-width:1500px;}
   .topbar{margin-bottom:16px;}
   .page-title{font-size:19px;font-weight:700;}
@@ -89,7 +80,7 @@
     .sidebar-nav{flex-direction:row;flex-wrap:nowrap;overflow-x:auto;gap:6px;margin-top:0;}
     .sb-section{display:none;}
     .sb-item{white-space:nowrap;}
-    .sidebar-actions{flex-direction:row;flex-wrap:wrap;margin-top:8px;padding-top:8px;}
+    .sidebar-actions{flex-direction:row;margin-top:8px;padding-top:8px;}
     .main{padding:16px 14px 40px;}
   }
 </style>
@@ -118,16 +109,6 @@
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
-      <button class="sb-btn sb-btn-telegram" id="btnTelegram">📤 Bắn dữ liệu lên Telegram</button>
-      <button class="sb-btn sb-btn-tgconfig" id="tgToggle" type="button">⚙️ Cấu hình Telegram</button>
-      <div class="tg-panel hidden" id="tgPanel">
-        <label>Bot Token</label>
-        <input type="password" id="tgTokenInput" placeholder="123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
-        <label>Chat ID</label>
-        <input type="text" id="tgChatIdInput" placeholder="-1001234567890" autocomplete="off">
-        <button class="sb-btn sb-btn-tgsave" id="tgSave" type="button">💾 Lưu cấu hình</button>
-        <div class="tg-note">Token &amp; Chat ID chỉ lưu trên trình duyệt này (localStorage), không lưu vào mã nguồn hay GitHub.</div>
-      </div>
       <button class="sb-btn sb-btn-refresh" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
     </div>
   </aside>
@@ -165,7 +146,7 @@
     <div id="view-gtc-tong" class="view hidden">
       <div class="panel">
         <h2>Tỉ lệ giao thành công theo bưu cục (GTC Tổng Ca 1 + 2)</h2>
-        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC, %Return, Vol đơn trả. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
         <div class="scroll-wrap"><table id="tbl-gtc-tong"></table></div>
         <div class="analysis" id="an-gtc-tong"></div>
         <div class="chart-wrap hidden" id="chart-gtc-tong"></div>
@@ -175,7 +156,7 @@
     <div id="view-gtc-tts" class="view hidden">
       <div class="panel">
         <h2>Tỉ lệ giao thành công nhóm hàng TTS theo bưu cục (GTC TTS Ca 1 + 2)</h2>
-        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
+        <div class="desc">Theo từng ngày (7 ngày gần nhất trong khoảng lọc): Volume, %Gán, %GTC Ca1, %GTC Ca2, %GTC tổng, số đơn GTC, %Return, Vol đơn trả. Xếp hạng theo %GTC ngày gần nhất, tệ nhất lên đầu.</div>
         <div class="scroll-wrap"><table id="tbl-gtc-tts"></table></div>
         <div class="analysis" id="an-gtc-tts"></div>
         <div class="chart-wrap hidden" id="chart-gtc-tts"></div>
@@ -223,14 +204,9 @@ const SHEETS = {
   opr_tts: 'OPR TTS',
   fd: 'FD'
 };
-// FD sheet is fetched by gid instead of by name: Google's gviz name-lookup for
-// this particular tab intermittently resolves to a stale/broken cached sheet
-// (returns a single "#REF!" cell) even though the tab's real content is fine.
-// Fetching by gid bypasses that name-resolution bug entirely.
-const FD_GID = '886614472';
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
-const FALLBACK_DATA = {"gtc_tong":[],"gtc_tts":[],"odr_tts":[],"opr_tts":[],"fd":[]};
+const FALLBACK_DATA = {"gtc_tong":[],"gtc_tts":[],"odr_tts":[],"opr_tts":[]};
 const FALLBACK_TIME = "chua co snapshot - dung du lieu truc tiep";
 
 let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
@@ -255,30 +231,6 @@ function loadSheetJSONP(sheetName, key){
   return new Promise((resolve, reject)=>{
     const cbName = 'gvizCb_' + key + '_' + Date.now();
     const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?sheet='+encodeURIComponent(sheetName)+'&tqx=out:json;responseHandler:'+cbName;
-    const script = document.createElement('script');
-    let done = false;
-    const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
-    function cleanup(){
-      clearTimeout(timeout);
-      delete window[cbName];
-      if(script.parentNode) script.parentNode.removeChild(script);
-    }
-    window[cbName] = function(json){
-      if(done) return;
-      done = true;
-      cleanup();
-      resolve(json);
-    };
-    script.onerror = function(){ if(!done){ done=true; cleanup(); reject(new Error('script load error')); } };
-    script.src = url;
-    document.body.appendChild(script);
-  });
-}
-
-function loadSheetByGidJSONP(gid, key){
-  return new Promise((resolve, reject)=>{
-    const cbName = 'gvizCb_' + key + '_' + Date.now();
-    const url = 'https://docs.google.com/spreadsheets/d/'+SPREADSHEET_ID+'/gviz/tq?gid='+gid+'&tqx=out:json;responseHandler:'+cbName;
     const script = document.createElement('script');
     let done = false;
     const timeout = setTimeout(()=>{ if(!done){ done=true; cleanup(); reject(new Error('timeout')); } }, 15000);
@@ -334,6 +286,7 @@ async function fetchAll(){
         volume: toNum(r[4]),
         pct_gan: toNum(r[5]),
         pct_gtc: toNum(r[6]),
+        pct_tra: toNum(r[7]),
       })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
     } else {
       results[key] = rows.filter(r=>r[1] && !isAggregateRow(r[1])).map(r=>({
@@ -344,17 +297,12 @@ async function fetchAll(){
       })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
     }
   }
-  // FD separately - fetched by gid (see FD_GID comment above), may still error
+  // FD separately - may error
   try{
-    const json = await loadSheetByGidJSONP(FD_GID, 'fd');
+    const json = await loadSheetJSONP(SHEETS.fd, 'fd');
     const {rows} = gvizToRows(json);
-    const fdRows = rows.filter(r=>r[1] && !isAggregateRow(r[1])).map(r=>({
-      office: (r[1]||'').toString().trim(),
-      date: parseDate((r[2]||'').toString().split(',')[0]),
-      vol: toNum(r[3]),
-      ret: toNum(r[4]),
-    })).filter(r=>/^\d{4}-\d{2}-\d{2}$/.test(r.date));
-    if(fdRows.length===0) throw new Error('Sheet FD không có dữ liệu hợp lệ.');
+    const fdRows = rows.filter(r=>r[0] && r[0] !== '#REF!');
+    if(fdRows.length===0) throw new Error('Sheet FD trống hoặc lỗi công thức (#REF!)');
     results['fd'] = fdRows;
     FD_STATUS = 'ok';
   }catch(e){
@@ -453,11 +401,12 @@ function buildGtcPivotTable(rows, tblId, anId){
   rows.forEach(r=>{
     if(dates.indexOf(r.date)===-1) return;
     const byDate = agg[r.office];
-    if(!byDate[r.date]) byDate[r.date] = {vol:0, ganW:0, gtcW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}};
+    if(!byDate[r.date]) byDate[r.date] = {vol:0, ganW:0, gtcW:0, traW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}};
     const c = byDate[r.date];
     c.vol += r.volume;
     c.ganW += r.volume*r.pct_gan;
     c.gtcW += r.volume*r.pct_gtc;
+    c.traW += r.volume*(r.pct_tra||0);
     if(r.group===CA1_GROUP){ c.ca1.vol += r.volume; c.ca1.gtcW += r.volume*r.pct_gtc; }
     else if(r.group===CA2_GROUP){ c.ca2.vol += r.volume; c.ca2.gtcW += r.volume*r.pct_gtc; }
   });
@@ -477,16 +426,19 @@ function buildGtcPivotTable(rows, tblId, anId){
   officeRows.sort((a,b)=>(a.sortVal===null?Infinity:a.sortVal)-(b.sortVal===null?Infinity:b.sortVal));
 
   let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
-  dates.forEach(d=>{ head += '<th colspan="6" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
+  dates.forEach(d=>{ head += '<th colspan="8" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(d)+'</th>'; });
   head += '</tr><tr><th class="stt-cell"></th><th class="office-cell"></th>';
-  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">Vol</th><th>%Gán</th><th>Ca1</th><th>Ca2</th><th>%GTC</th><th>GTC</th>'; });
+  dates.forEach(()=>{ head += '<th style="border-left:2px solid var(--border);">Vol</th><th>%Gán</th><th>Ca1</th><th>Ca2</th><th>%GTC</th><th>GTC</th><th>%Return</th><th>Vol đơn trả</th>'; });
   head += '</tr>';
 
   function cellsFor(c){
     if(!c || c.vol<=0){
-      return '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
+      return '<td style="border-left:2px solid var(--border);">-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>';
     }
     const pctGan = c.ganW/c.vol, pctGtc = c.gtcW/c.vol;
+    const traW = c.traW||0;
+    const retDenom = c.gtcW + traW;
+    const pctReturn = retDenom>0 ? traW/retDenom : 0;
     const ca1Html = c.ca1.vol>0 ? ('<span class="heat" style="background:'+pctColor(c.ca1.gtcW/c.ca1.vol)+';padding:2px 6px;">'+fmtPct(c.ca1.gtcW/c.ca1.vol)+'</span>') : '-';
     const ca2Html = c.ca2.vol>0 ? ('<span class="heat" style="background:'+pctColor(c.ca2.gtcW/c.ca2.vol)+';padding:2px 6px;">'+fmtPct(c.ca2.gtcW/c.ca2.vol)+'</span>') : '-';
     let html = '<td style="border-left:2px solid var(--border);">'+fmtNum(c.vol)+'</td>';
@@ -495,11 +447,13 @@ function buildGtcPivotTable(rows, tblId, anId){
     html += '<td>'+ca2Html+'</td>';
     html += '<td><span class="heat" style="background:'+pctColor(pctGtc)+';padding:2px 6px;">'+fmtPct(pctGtc)+'</span></td>';
     html += '<td>'+fmtNum(c.gtcW)+'</td>';
+    html += '<td><span class="heat" style="background:'+pctColor(1-pctReturn)+';padding:2px 6px;">'+fmtPct(pctReturn)+'</span></td>';
+    html += '<td>'+fmtNum(traW)+'</td>';
     return html;
   }
 
   let body = '';
-  const grand = {}; dates.forEach(d=>grand[d]={vol:0, ganW:0, gtcW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}});
+  const grand = {}; dates.forEach(d=>grand[d]={vol:0, ganW:0, gtcW:0, traW:0, ca1:{vol:0,gtcW:0}, ca2:{vol:0,gtcW:0}});
   officeRows.forEach((row,idx)=>{
     let rowHtml = '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
     dates.forEach(d=>{
@@ -507,7 +461,7 @@ function buildGtcPivotTable(rows, tblId, anId){
       rowHtml += cellsFor(c);
       if(c && c.vol>0){
         const g = grand[d];
-        g.vol += c.vol; g.ganW += c.ganW; g.gtcW += c.gtcW;
+        g.vol += c.vol; g.ganW += c.ganW; g.gtcW += c.gtcW; g.traW += (c.traW||0);
         g.ca1.vol += c.ca1.vol; g.ca1.gtcW += c.ca1.gtcW;
         g.ca2.vol += c.ca2.vol; g.ca2.gtcW += c.ca2.gtcW;
       }
@@ -620,77 +574,18 @@ function buildTrendPivotTable(rows, tblId, anId, label){
   anEl.innerHTML = html;
 }
 
-// ---------- Dashboard 3: FD (so sánh 2 ngày gần nhất) ----------
-function buildFD(rows){
+// ---------- Dashboard 3: FD ----------
+function buildFD(){
   const el = document.getElementById('fd-content');
-  if(FD_STATUS !== 'ok'){
+  if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0){
     el.innerHTML = '<div class="err-box">'
       + '<b>⚠️ Không đọc được dữ liệu sheet "FD".</b><br>'
-      + 'Vui lòng kiểm tra sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.'
+      + 'Ô đầu tiên của sheet trả về lỗi công thức <code>#REF!</code> (tham chiếu bị hỏng), phía sau không còn dữ liệu nào khác.'
+      + ' Vui lòng kiểm tra và sửa công thức trong sheet "FD" trên Google Sheet gốc, sau đó bấm "Cập nhật dữ liệu" ở trên để dashboard tự đọc lại.'
       + '</div>';
     return;
   }
-  const dates = lastNDates(rows, 2);
-  if(dates.length===0){
-    el.innerHTML = '<div class="placeholder">Không có dữ liệu trong khoảng lọc hiện tại.</div>';
-    return;
-  }
-  const last = dates[dates.length-1];
-  const prev = dates.length>1 ? dates[dates.length-2] : null;
-  const offices = Array.from(new Set(rows.map(r=>r.office))).sort();
-  const byOD = {}; offices.forEach(o=>byOD[o]={});
-  rows.forEach(r=>{ byOD[r.office][r.date] = r; });
-
-  let head = '<tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
-  if(prev) head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(prev)+'</th>';
-  head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">'+fmtDateHeader(last)+'</th>';
-  head += '<th colspan="2" style="text-align:center;border-left:2px solid var(--border);">Chênh lệch</th></tr>';
-  head += '<tr><th class="stt-cell"></th><th class="office-cell"></th>';
-  if(prev) head += '<th style="border-left:2px solid var(--border);">%vol</th><th>%Return</th>';
-  head += '<th style="border-left:2px solid var(--border);">%vol</th><th>%Return</th>';
-  head += '<th style="border-left:2px solid var(--border);">Δ%vol</th><th>Δ%Return</th></tr>';
-
-  let body = '';
-  offices.forEach((o, idx)=>{
-    const p = prev ? byOD[o][prev] : null;
-    const l = byOD[o][last];
-    const dVol = (l && p) ? (l.vol - p.vol) : null;
-    const dRet = (l && p) ? (l.ret - p.ret) : null;
-    const bigChange = (dVol!==null && Math.abs(dVol)>0.10) || (dRet!==null && Math.abs(dRet)>0.10);
-    body += '<tr'+(bigChange ? ' style="background:rgba(220,38,38,0.14);"' : '')+'>';
-    body += '<td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(o)+'</td>';
-    if(prev) body += '<td style="border-left:2px solid var(--border);">'+(p?fmtPct(p.vol):'-')+'</td><td>'+(p?fmtPct(p.ret):'-')+'</td>';
-    body += '<td style="border-left:2px solid var(--border);">'+(l?fmtPct(l.vol):'-')+'</td><td>'+(l?fmtPct(l.ret):'-')+'</td>';
-    body += '<td style="border-left:2px solid var(--border);'+(dVol!==null && Math.abs(dVol)>0.10 ? 'color:var(--red);font-weight:700;' : '')+'">'+(dVol!==null ? ((dVol>=0?'+':'')+(dVol*100).toFixed(1)+'đ') : '-')+'</td>';
-    body += '<td style="'+(dRet!==null && Math.abs(dRet)>0.10 ? 'color:var(--red);font-weight:700;' : '')+'">'+(dRet!==null ? ((dRet>=0?'+':'')+(dRet*100).toFixed(1)+'đ') : '-')+'</td>';
-    body += '</tr>';
-  });
-
-  let html = '<div class="scroll-wrap"><table>'+head+body+'</table></div>';
-  html += '<div class="analysis" id="an-fd"></div>';
-  el.innerHTML = html;
-
-  const withDelta = offices.map(o=>{
-    const p = prev ? byOD[o][prev] : null, l = byOD[o][last];
-    return {office:o, dRet: (l && p) ? (l.ret - p.ret) : null};
-  }).filter(x=>x.dRet!==null);
-
-  const anEl = document.getElementById('an-fd');
-  if(!prev || withDelta.length===0){
-    anEl.innerHTML = 'Chưa đủ 2 ngày dữ liệu trong khoảng lọc để so sánh.';
-    return;
-  }
-  withDelta.sort((a,b)=>a.dRet-b.dRet);
-  const worst = withDelta[0], best = withDelta[withDelta.length-1];
-  let txt = 'So sánh <b>'+dmy(prev)+'</b> → <b>'+dmy(last)+'</b>: ';
-  txt += 'Tăng %Return nhiều nhất: <b class="best">'+officeLabel(best.office)+'</b> ('+(best.dRet>=0?'+':'')+(best.dRet*100).toFixed(1)+'đ). ';
-  txt += 'Giảm %Return nhiều nhất: <b class="worst">'+officeLabel(worst.office)+'</b> ('+(worst.dRet>=0?'+':'')+(worst.dRet*100).toFixed(1)+'đ).';
-  const bigCount = offices.filter(o=>{
-    const p = byOD[o][prev], l = byOD[o][last];
-    return l && p && (Math.abs(l.ret-p.ret)>0.10 || Math.abs(l.vol-p.vol)>0.10);
-  }).length;
-  if(bigCount>0) txt += ' Có <b class="worst">'+bigCount+'</b> bưu cục chênh lệch trên 10% (bôi đỏ trong bảng).';
-  anEl.innerHTML = txt;
+  el.innerHTML = '<div class="placeholder">Đã đọc được dữ liệu FD — vui lòng cho biết cấu trúc cột để hoàn thiện bảng này.</div>';
 }
 
 // ---------- Detailed trend charts (SVG, no external libs) ----------
@@ -799,75 +694,6 @@ function refreshOpenChart(){
   if(wrap && !wrap.classList.contains('hidden')) renderChartForView(currentView);
 }
 
-// ---------- Telegram integration ----------
-function getTgConfig(){
-  return { token: localStorage.getItem('tgBotToken') || '', chatId: localStorage.getItem('tgChatId') || '' };
-}
-function saveTgConfig(token, chatId){
-  localStorage.setItem('tgBotToken', token);
-  localStorage.setItem('tgChatId', chatId);
-}
-function htmlToTelegram(html){
-  return (html || '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<b(?:\s[^>]*)?>/gi, '<b>')
-    .replace(/<\/b>/gi, '</b>')
-    .replace(/<span[^>]*>/gi, '')
-    .replace(/<\/span>/gi, '')
-    .replace(/&nbsp;/g, ' ');
-}
-function buildTelegramReport(){
-  const now = new Date().toLocaleString('vi-VN');
-  const lines = [];
-  lines.push('<b>📊 BÁO CÁO VẬN HÀNH KHU VỰC — Hải Phòng</b>');
-  lines.push('🕒 ' + now);
-  lines.push('');
-  const sections = [
-    ['🎯 GTC Tổng Ca 1+2', 'an-gtc-tong'],
-    ['🚀 GTC TTS Ca 1+2', 'an-gtc-tts'],
-    ['⏱ ODR TTS (Ontime giao)', 'an-odr'],
-    ['📦 OPR TTS (Ontime lấy)', 'an-opr'],
-  ];
-  sections.forEach(([title, id]) => {
-    const el = document.getElementById(id);
-    if (el && el.innerHTML.trim()) {
-      lines.push('<b>' + title + '</b>');
-      lines.push(htmlToTelegram(el.innerHTML));
-      lines.push('');
-    }
-  });
-  return lines.join('\n');
-}
-async function sendToTelegram(){
-  const { token, chatId } = getTgConfig();
-  if (!token || !chatId) {
-    document.getElementById('tgPanel').classList.remove('hidden');
-    alert('Vui lòng nhập Telegram Bot Token và Chat ID rồi bấm "Lưu cấu hình" trước khi gửi.');
-    return;
-  }
-  const btn = document.getElementById('btnTelegram');
-  const oldText = btn.textContent;
-  btn.disabled = true; btn.textContent = '📤 Đang gửi...';
-  try {
-    const text = buildTelegramReport();
-    const res = await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: text, parse_mode: 'HTML' })
-    });
-    const j = await res.json();
-    if (j.ok) {
-      alert('Đã gửi báo cáo lên Telegram thành công!');
-    } else {
-      alert('Gửi thất bại: ' + (j.description || 'Lỗi không rõ. Kiểm tra lại Token/Chat ID.'));
-    }
-  } catch (e) {
-    alert('Lỗi kết nối tới Telegram: ' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = oldText;
-  }
-}
-
 // ---------- Render everything ----------
 function renderAll(){
   const g1 = filterRows(DATA.gtc_tong);
@@ -878,7 +704,7 @@ function renderAll(){
   buildGtcPivotTable(g2, 'tbl-gtc-tts', 'an-gtc-tts');
   buildTrendPivotTable(o1, 'tbl-odr', 'an-odr', 'ODR');
   buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
-  buildFD(filterRows(DATA.fd));
+  buildFD();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
@@ -906,27 +732,6 @@ document.getElementById('btnAnalysis').addEventListener('click', ()=>{
   const nowHidden = wrap.classList.toggle('hidden');
   if(!nowHidden) renderChartForView(currentView);
 });
-
-document.getElementById('btnTelegram').addEventListener('click', sendToTelegram);
-
-document.getElementById('tgToggle').addEventListener('click', ()=>{
-  document.getElementById('tgPanel').classList.toggle('hidden');
-});
-
-document.getElementById('tgSave').addEventListener('click', ()=>{
-  const token = document.getElementById('tgTokenInput').value.trim();
-  const chatId = document.getElementById('tgChatIdInput').value.trim();
-  if(!token || !chatId){ alert('Vui lòng nhập đủ Bot Token và Chat ID.'); return; }
-  saveTgConfig(token, chatId);
-  document.getElementById('tgPanel').classList.add('hidden');
-  alert('Đã lưu cấu hình Telegram trên trình duyệt này.');
-});
-
-(function initTgPanel(){
-  const { token, chatId } = getTgConfig();
-  if(token) document.getElementById('tgTokenInput').value = token;
-  if(chatId) document.getElementById('tgChatIdInput').value = chatId;
-})();
 
 // ---------- Refresh ----------
 document.getElementById('btnRefresh').onclick = async ()=>{
@@ -974,3 +779,7 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 </script>
 </body>
 </html>
+
+<!-- redeploy-trigger-v3 -->
+
+<!-- redeploy-trigger-v4 -->
