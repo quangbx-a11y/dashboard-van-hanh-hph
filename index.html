@@ -222,7 +222,7 @@
     <div id="view-violations" class="view hidden">
       <div class="panel">
         <h2>Vi phạm đồng phục &amp; hành vi theo bưu cục</h2>
-        <div class="desc">Tổng hợp toàn bộ lỗi vi phạm đồng phục &amp; hành vi bưu cục (nguồn: sheet "Giải trình vi phạm"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Không áp dụng bộ lọc ngày ở trên (hiển thị toàn bộ lịch sử). Tô đỏ bưu cục ≥10 lỗi, tô vàng ≥5 lỗi. Xếp hạng theo số lỗi, nhiều nhất lên đầu.</div>
+        <div class="desc">Tổng hợp toàn bộ lỗi vi phạm đồng phục &amp; hành vi bưu cục (nguồn: sheet "Giải trình vi phạm"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Không áp dụng bộ lọc ngày ở trên (hiển thị toàn bộ lịch sử). "Đã giải trình" = số lỗi đã nộp giải trình/bằng chứng trên tổng số lỗi. "Được loại phạt" = số lỗi được duyệt loại (miễn phạt) trên tổng số lỗi. Tô đỏ bưu cục ≥10 lỗi, tô vàng ≥5 lỗi. Xếp hạng theo số lỗi, nhiều nhất lên đầu.</div>
         <div id="violations-content"></div>
       </div>
     </div>
@@ -413,6 +413,7 @@ async function fetchAll(){
       fine: toNum(r[17]),
       reason: (r[10]||'').toString().trim(),
       status: (r[22]||'').toString().trim(),
+      ghichu: (r[23]||'').toString().trim(),
     }));
     results['violations'] = violationRows;
     VIOLATIONS_STATUS = violationRows.length>0 ? 'ok' : 'error';
@@ -827,9 +828,11 @@ function buildAging(){
 function aggregateViolations(rows){
   const byOffice = {};
   rows.forEach(r=>{
-    if(!byOffice[r.office]) byOffice[r.office] = {count:0, fine:0};
+    if(!byOffice[r.office]) byOffice[r.office] = {count:0, fine:0, explained:0, exempted:0};
     byOffice[r.office].count++;
     byOffice[r.office].fine += (r.fine||0);
+    if(r.ghichu && r.ghichu !== 'Không giải trình') byOffice[r.office].explained++;
+    if(r.status === 'Duyệt loại') byOffice[r.office].exempted++;
   });
   return byOffice;
 }
@@ -858,14 +861,21 @@ function buildViolations(){
     return '';
   }
 
-  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số lỗi vi phạm</th><th>Tổng mức phạt (đ)</th></tr>';
+  grand.explained = 0; grand.exempted = 0;
+  officeRows.forEach(r=>{ grand.explained+=r.explained; grand.exempted+=r.exempted; });
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số lỗi vi phạm</th><th>Tổng mức phạt (đ)</th><th>Đã giải trình</th><th>Được loại phạt</th></tr>';
   officeRows.forEach((row, idx)=>{
     html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
     html += '<td><span class="heat" style="'+badgeStyle(row.count)+'padding:2px 8px;">'+fmtNum(row.count)+'</span></td>';
-    html += '<td>'+fmtNum(row.fine)+'</td></tr>';
+    html += '<td>'+fmtNum(row.fine)+'</td>';
+    html += '<td>'+fmtNum(row.explained)+'/'+fmtNum(row.count)+'</td>';
+    html += '<td>'+fmtNum(row.exempted)+'/'+fmtNum(row.count)+'</td></tr>';
   });
   html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
-  html += '<td>'+fmtNum(grand.count)+'</td><td>'+fmtNum(grand.fine)+'</td></tr>';
+  html += '<td>'+fmtNum(grand.count)+'</td><td>'+fmtNum(grand.fine)+'</td>';
+  html += '<td>'+fmtNum(grand.explained)+'/'+fmtNum(grand.count)+'</td>';
+  html += '<td>'+fmtNum(grand.exempted)+'/'+fmtNum(grand.count)+'</td></tr>';
   html += '</table>';
   el.innerHTML = html;
 }
