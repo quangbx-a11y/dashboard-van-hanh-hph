@@ -394,6 +394,10 @@ function bucketLabel(b){
   const parts = b.split('_');
   return parts[0]+'-'+parts[1]+'h';
 }
+function bucketLowerBound(b){
+  if(b==='192') return 192;
+  return parseInt(b.split('_')[0], 10);
+}
 
 async function fetchAll(){
   const results = {};
@@ -1055,22 +1059,23 @@ function buildBacklog(){
 }
 
 // ---------- Dashboard 8+9: generic bucket-based (Ty le gan / Backlog LC) ----------
-function aggregateBuckets(rows, buckets){
+function aggregateBuckets(rows, buckets, threshold){
   const byOffice = {};
   rows.forEach(r=>{
     if(!byOffice[r.office]){
-      byOffice[r.office] = {total:0, tts:0, byBucket:{}};
+      byOffice[r.office] = {total:0, tts:0, over:0, byBucket:{}};
       buckets.forEach(b=>byOffice[r.office].byBucket[b]=0);
     }
     const o = byOffice[r.office];
     if(Object.prototype.hasOwnProperty.call(o.byBucket, r.bucket)) o.byBucket[r.bucket]++;
     o.total++;
     if(/^TTS/i.test(r.segment||'')) o.tts++;
+    if(threshold!=null && bucketLowerBound(r.bucket) >= threshold) o.over++;
   });
   return byOffice;
 }
 
-function buildBucketTable(el, status, data, buckets){
+function buildBucketTable(el, status, data, buckets, extraCol){
   if(status !== 'ok' || !data || data.length===0){
     el.innerHTML = '<div class="placeholder">Không có dữ liệu.</div>';
     return;
@@ -1080,38 +1085,42 @@ function buildBucketTable(el, status, data, buckets){
     el.innerHTML = '<div class="placeholder">Không có dữ liệu ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
     return;
   }
-  const byOffice = aggregateBuckets(scoped, buckets);
+  const threshold = extraCol ? extraCol.threshold : null;
+  const byOffice = aggregateBuckets(scoped, buckets, threshold);
   const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
   officeRows.sort((a,b)=>b.total-a.total);
 
-  const grand = {total:0, tts:0, byBucket:{}};
+  const grand = {total:0, tts:0, over:0, byBucket:{}};
   buckets.forEach(b=>grand.byBucket[b]=0);
   officeRows.forEach(r=>{
-    grand.total += r.total; grand.tts += r.tts;
+    grand.total += r.total; grand.tts += r.tts; grand.over += r.over;
     buckets.forEach(b=>{ grand.byBucket[b] += r.byBucket[b]; });
   });
 
   let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
   buckets.forEach(b=>{ html += '<th>'+bucketLabel(b)+'</th>'; });
+  if(extraCol) html += '<th>'+extraCol.label+'</th>';
   html += '<th>Đơn TTS</th><th>Tổng</th></tr>';
   officeRows.forEach((row, idx)=>{
     html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
     buckets.forEach(b=>{ html += '<td>'+fmtNum(row.byBucket[b])+'</td>'; });
+    if(extraCol) html += '<td><span class="heat" style="background:var(--yellow);color:#04121f;font-weight:700;padding:2px 8px;">'+fmtNum(row.over)+'</span></td>';
     html += '<td>'+fmtNum(row.tts)+'</td><td><b>'+fmtNum(row.total)+'</b></td></tr>';
   });
   html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
   buckets.forEach(b=>{ html += '<td>'+fmtNum(grand.byBucket[b])+'</td>'; });
+  if(extraCol) html += '<td>'+fmtNum(grand.over)+'</td>';
   html += '<td>'+fmtNum(grand.tts)+'</td><td>'+fmtNum(grand.total)+'</td></tr>';
   html += '</table>';
   el.innerHTML = html;
 }
 
 function buildGanty(){
-  buildBucketTable(document.getElementById('ganty-content'), GANTY_STATUS, DATA.ganty, GANTY_BUCKETS);
+  buildBucketTable(document.getElementById('ganty-content'), GANTY_STATUS, DATA.ganty, GANTY_BUCKETS, {threshold:24, label:'Tồn &gt;24h'});
 }
 
 function buildBacklogLC(){
-  buildBucketTable(document.getElementById('backloglc-content'), BACKLOG_LC_STATUS, DATA.backlog_lc, BACKLOG_LC_BUCKETS);
+  buildBucketTable(document.getElementById('backloglc-content'), BACKLOG_LC_STATUS, DATA.backlog_lc, BACKLOG_LC_BUCKETS, {threshold:36, label:'Tồn &gt;36h'});
 }
 
 // ---------- Detailed trend charts (SVG, no external libs) ----------
