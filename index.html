@@ -121,6 +121,9 @@
 
       <div class="sb-section">Tồn đọng</div>
       <button class="sb-item" data-view="aging"><span class="sb-icon">📛</span>Aging tồn &gt;5 ngày</button>
+
+      <div class="sb-section">Vi phạm</div>
+      <button class="sb-item" data-view="violations"><span class="sb-icon">🧷</span>Vi phạm đồng phục &amp; hành vi</button>
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
@@ -216,6 +219,14 @@
       </div>
     </div>
 
+    <div id="view-violations" class="view hidden">
+      <div class="panel">
+        <h2>Vi phạm đồng phục &amp; hành vi theo bưu cục</h2>
+        <div class="desc">Tổng hợp lỗi vi phạm đồng phục &amp; hành vi bưu cục (nguồn: sheet "Giải trình vi phạm"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên), trong khoảng ngày đang lọc. Tô đỏ bưu cục ≥10 lỗi, tô vàng ≥5 lỗi. Xếp hạng theo số lỗi, nhiều nhất lên đầu.</div>
+        <div id="violations-content"></div>
+      </div>
+    </div>
+
     <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
   </main>
 
@@ -243,7 +254,8 @@ const SHEETS = {
   odr_tts: 'ODR TTS',
   opr_tts: 'OPR TTS',
   fd: 886614472,
-  aging: 2108585336
+  aging: 2108585336,
+  violations: 1961661235
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -254,6 +266,7 @@ let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
 let LAST_UPDATED = FALLBACK_TIME;
 let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let AGING_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let VIOLATIONS_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
@@ -374,6 +387,23 @@ async function fetchAll(){
   }catch(e){
     AGING_STATUS = 'error';
     results['aging'] = [];
+  }
+  // Vi pham dong phuc & hanh vi - "Giai trinh vi pham" (XBG = khu vuc AM Bui Xuan Quang), own gid
+  try{
+    const json = await loadSheetJSONP(SHEETS.violations, 'violations');
+    const {rows} = gvizToRows(json);
+    const violationRows = rows.filter(r=>r[0]==='XBG' && r[5]).map(r=>({
+      office: (r[5]||'').toString().trim(),
+      date: (r[8]||'').toString().slice(0,10).replace(/\//g,'-'),
+      fine: toNum(r[17]),
+      reason: (r[10]||'').toString().trim(),
+      status: (r[22]||'').toString().trim(),
+    }));
+    results['violations'] = violationRows;
+    VIOLATIONS_STATUS = violationRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    VIOLATIONS_STATUS = 'error';
+    results['violations'] = [];
   }
   return results;
 }
@@ -778,6 +808,53 @@ function buildAging(){
   el.innerHTML = html;
 }
 
+// ---------- Dashboard 5: Vi pham dong phuc & hanh vi ----------
+function aggregateViolations(rows){
+  const byOffice = {};
+  rows.forEach(r=>{
+    if(!byOffice[r.office]) byOffice[r.office] = {count:0, fine:0};
+    byOffice[r.office].count++;
+    byOffice[r.office].fine += (r.fine||0);
+  });
+  return byOffice;
+}
+
+function buildViolations(){
+  const el = document.getElementById('violations-content');
+  if(VIOLATIONS_STATUS !== 'ok' || !DATA.violations || DATA.violations.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu vi phạm đồng phục &amp; hành vi.</div>';
+    return;
+  }
+  const scoped = DATA.violations.filter(r=>selectedOffices.has(r.office) && inRange(r.date));
+  if(scoped.length===0){
+    el.innerHTML = '<div class="placeholder">Không có vi phạm nào ở các bưu cục đang chọn (AM Bùi Xuân Quang) trong khoảng ngày đang lọc.</div>';
+    return;
+  }
+  const byOffice = aggregateViolations(scoped);
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.count-a.count);
+
+  const grand = {count:0, fine:0};
+  officeRows.forEach(r=>{ grand.count+=r.count; grand.fine+=r.fine; });
+
+  function badgeStyle(count){
+    if(count>=10) return 'background:var(--bad);color:#fff;font-weight:700;';
+    if(count>=5) return 'background:var(--yellow);color:#04121f;font-weight:700;';
+    return '';
+  }
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số lỗi vi phạm</th><th>Tổng mức phạt (đ)</th></tr>';
+  officeRows.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    html += '<td><span class="heat" style="'+badgeStyle(row.count)+'padding:2px 8px;">'+fmtNum(row.count)+'</span></td>';
+    html += '<td>'+fmtNum(row.fine)+'</td></tr>';
+  });
+  html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  html += '<td>'+fmtNum(grand.count)+'</td><td>'+fmtNum(grand.fine)+'</td></tr>';
+  html += '</table>';
+  el.innerHTML = html;
+}
+
 // ---------- Detailed trend charts (SVG, no external libs) ----------
 const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
 
@@ -896,6 +973,7 @@ function renderAll(){
   buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
   buildFD();
   buildAging();
+  buildViolations();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
