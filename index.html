@@ -242,6 +242,11 @@
         <div class="desc">Snapshot số đơn (Lấy/Giao/Trả) đang chờ gán, chia theo thời gian tồn đọng (giờ), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý. Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo thời điểm cập nhật của sheet nguồn). Xếp hạng theo tổng đơn, nhiều nhất lên đầu.</div>
         <div id="ganty-content"></div>
       </div>
+      <div class="panel" style="margin-top:18px;">
+        <h2>Tỉ lệ gán theo bưu cục</h2>
+        <div class="desc">Tỉ lệ đơn đã gán (đang có/đã có chuyến đi trong ngày) trên tổng đơn, và số đơn chưa gán (chưa có chuyến đi trong ngày), theo từng bưu cục. Xếp hạng theo tỉ lệ gán thấp nhất lên đầu.</div>
+        <div id="ganty-rate-content"></div>
+      </div>
     </div>
 
     <div id="view-backloglc" class="view hidden">
@@ -521,6 +526,7 @@ async function fetchAll(){
       office: (r[7]||'').toString().trim(),
       segment: (r[3]||'').toString().trim(),
       bucket: (r[6]||'').toString().trim(),
+      status: (r[5]||'').toString().trim(),
     }));
     results['ganty'] = gantyRows;
     GANTY_STATUS = gantyRows.length>0 ? 'ok' : 'error';
@@ -1131,6 +1137,58 @@ const BACKLOG_LC_EXTRA_COLS = [
 
 function buildGanty(){
   buildBucketTable(document.getElementById('ganty-content'), GANTY_STATUS, DATA.ganty, GANTY_BUCKETS, GANTY_EXTRA_COLS);
+  buildGantyRateTable();
+}
+
+function gantyRateColor(rate){
+  if(rate>=90) return 'var(--green)';
+  if(rate>=70) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+function buildGantyRateTable(){
+  const el = document.getElementById('ganty-rate-content');
+  if(GANTY_STATUS !== 'ok' || !DATA.ganty || DATA.ganty.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu.</div>';
+    return;
+  }
+  const scoped = DATA.ganty.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
+    return;
+  }
+  const byOffice = {};
+  scoped.forEach(r=>{
+    if(!byOffice[r.office]) byOffice[r.office] = {total:0, chuaGan:0};
+    byOffice[r.office].total++;
+    if(r.status === 'Chưa có chuyến đi trong ngày') byOffice[r.office].chuaGan++;
+  });
+  const officeRows = Object.keys(byOffice).map(o=>{
+    const d = byOffice[o];
+    const daGan = d.total - d.chuaGan;
+    const rate = d.total>0 ? (daGan/d.total*100) : 0;
+    return {office:o, total:d.total, chuaGan:d.chuaGan, daGan:daGan, rate:rate};
+  });
+  officeRows.sort((a,b)=>a.rate-b.rate);
+
+  const grand = officeRows.reduce((acc,r)=>{
+    acc.total += r.total; acc.chuaGan += r.chuaGan; acc.daGan += r.daGan;
+    return acc;
+  }, {total:0, chuaGan:0, daGan:0});
+  const grandRate = grand.total>0 ? (grand.daGan/grand.total*100) : 0;
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Tổng đơn</th><th>Đã gán</th><th>Chưa gán</th><th>Tỉ lệ gán</th></tr>';
+  officeRows.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    html += '<td>'+fmtNum(row.total)+'</td><td>'+fmtNum(row.daGan)+'</td>';
+    html += '<td><span class="heat" style="background:var(--yellow);color:#04121f;font-weight:700;padding:2px 8px;">'+fmtNum(row.chuaGan)+'</span></td>';
+    html += '<td><b style="color:'+gantyRateColor(row.rate)+';">'+row.rate.toFixed(1)+'%</b></td></tr>';
+  });
+  html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  html += '<td>'+fmtNum(grand.total)+'</td><td>'+fmtNum(grand.daGan)+'</td><td>'+fmtNum(grand.chuaGan)+'</td>';
+  html += '<td><b>'+grandRate.toFixed(1)+'%</b></td></tr>';
+  html += '</table>';
+  el.innerHTML = html;
 }
 
 function buildBacklogLC(){
