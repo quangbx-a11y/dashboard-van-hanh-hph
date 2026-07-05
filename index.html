@@ -197,7 +197,7 @@
     <div id="view-aging" class="view hidden">
       <div class="panel">
         <h2>Aging tồn đọng trên 5 ngày theo bưu cục</h2>
-        <div class="desc">Snapshot số đơn đang tồn tại bưu cục quá 5 ngày (toàn khu vực Hải Phòng), chia theo mức độ tồn đọng. Tô đỏ bưu cục tồn ≥50 đơn, tô vàng ≥15 đơn. Xếp hạng theo tổng tồn, nhiều nhất lên đầu.</div>
+        <div class="desc">Snapshot số đơn đang tồn tại bưu cục quá 5 ngày, chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Tô đỏ bưu cục tồn ≥50 đơn, tô vàng ≥15 đơn. Xếp hạng theo tổng tồn, nhiều nhất lên đầu.</div>
         <div id="aging-content"></div>
       </div>
     </div>
@@ -719,7 +719,12 @@ function buildAging(){
     el.innerHTML = '<div class="placeholder">Không có dữ liệu Aging tồn đọng trên 5 ngày.</div>';
     return;
   }
-  const byOffice = aggregateAging(DATA.aging);
+  const scoped = DATA.aging.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0){
+    el.innerHTML = '<div class="placeholder">Không có đơn tồn đọng &gt;5 ngày ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
+    return;
+  }
+  const byOffice = aggregateAging(scoped);
   const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
   officeRows.sort((a,b)=>b.total-a.total);
 
@@ -944,3 +949,5 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 <!-- redeploy-trigger-v5 -->
 
 <!-- redeploy-trigger-v6 -->
+
+<!-- redeploy-trigger-v7 -->
