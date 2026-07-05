@@ -106,6 +106,9 @@
 
       <div class="sb-section">FD</div>
       <button class="sb-item" data-view="fd"><span class="sb-icon">⏳</span>FD theo bưu cục</button>
+
+      <div class="sb-section">Tồn đọng</div>
+      <button class="sb-item" data-view="aging"><span class="sb-icon">📛</span>Aging tồn &gt;5 ngày</button>
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
@@ -191,6 +194,14 @@
       </div>
     </div>
 
+    <div id="view-aging" class="view hidden">
+      <div class="panel">
+        <h2>Aging tồn đọng trên 5 ngày theo bưu cục</h2>
+        <div class="desc">Snapshot số đơn đang tồn tại bưu cục quá 5 ngày (toàn khu vực Hải Phòng), chia theo mức độ tồn đọng. Tô đỏ bưu cục tồn ≥50 đơn, tô vàng ≥15 đơn. Xếp hạng theo tổng tồn, nhiều nhất lên đầu.</div>
+        <div id="aging-content"></div>
+      </div>
+    </div>
+
     <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
   </main>
 </div>
@@ -202,7 +213,8 @@ const SHEETS = {
   gtc_tts: 'GTC TTS Ca 1 + 2',
   odr_tts: 'ODR TTS',
   opr_tts: 'OPR TTS',
-  fd: 886614472
+  fd: 886614472,
+  aging: 2108585336
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -212,6 +224,7 @@ const FALLBACK_TIME = "chua co snapshot - dung du lieu truc tiep";
 let DATA = JSON.parse(JSON.stringify(FALLBACK_DATA));
 let LAST_UPDATED = FALLBACK_TIME;
 let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let AGING_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
@@ -318,6 +331,20 @@ async function fetchAll(){
   }catch(e){
     FD_STATUS = 'error';
     results['fd'] = [];
+  }
+  // Aging > 5 ngay - snapshot of backlog orders, Hai Phong only, own gid (separate from FD)
+  try{
+    const json = await loadSheetJSONP(SHEETS.aging, 'aging');
+    const {rows} = gvizToRows(json);
+    const agingRows = rows.filter(r=>r[1]==='Hải Phòng' && r[2]).map(r=>({
+      office: (r[2]||'').toString().trim(),
+      days: toNum(r[6]),
+    }));
+    results['aging'] = agingRows;
+    AGING_STATUS = agingRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    AGING_STATUS = 'error';
+    results['aging'] = [];
   }
   return results;
 }
@@ -670,6 +697,53 @@ function buildFD(){
   el.innerHTML = html;
 }
 
+// ---------- Dashboard 4: Aging ton dong > 5 ngay ----------
+function aggregateAging(rows){
+  const byOffice = {};
+  rows.forEach(r=>{
+    if(!byOffice[r.office]) byOffice[r.office] = {b57:0,b710:0,b1015:0,b15p:0,total:0};
+    const o = byOffice[r.office];
+    const d = r.days;
+    if(d>=15) o.b15p++;
+    else if(d>=10) o.b1015++;
+    else if(d>=7) o.b710++;
+    else o.b57++;
+    o.total++;
+  });
+  return byOffice;
+}
+
+function buildAging(){
+  const el = document.getElementById('aging-content');
+  if(AGING_STATUS !== 'ok' || !DATA.aging || DATA.aging.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu Aging tồn đọng trên 5 ngày.</div>';
+    return;
+  }
+  const byOffice = aggregateAging(DATA.aging);
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.total-a.total);
+
+  const grand = {b57:0,b710:0,b1015:0,b15p:0,total:0};
+  officeRows.forEach(r=>{ grand.b57+=r.b57; grand.b710+=r.b710; grand.b1015+=r.b1015; grand.b15p+=r.b15p; grand.total+=r.total; });
+
+  function badgeStyle(total){
+    if(total>=50) return 'background:var(--bad);color:#fff;font-weight:700;';
+    if(total>=15) return 'background:var(--yellow);color:#04121f;font-weight:700;';
+    return '';
+  }
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>5-7 ngày</th><th>7-10 ngày</th><th>10-15 ngày</th><th>&gt;15 ngày</th><th>Tổng tồn</th></tr>';
+  officeRows.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    html += '<td>'+fmtNum(row.b57)+'</td><td>'+fmtNum(row.b710)+'</td><td>'+fmtNum(row.b1015)+'</td><td>'+fmtNum(row.b15p)+'</td>';
+    html += '<td><span class="heat" style="'+badgeStyle(row.total)+'padding:2px 8px;">'+fmtNum(row.total)+'</span></td></tr>';
+  });
+  html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  html += '<td>'+fmtNum(grand.b57)+'</td><td>'+fmtNum(grand.b710)+'</td><td>'+fmtNum(grand.b1015)+'</td><td>'+fmtNum(grand.b15p)+'</td><td>'+fmtNum(grand.total)+'</td></tr>';
+  html += '</table>';
+  el.innerHTML = html;
+}
+
 // ---------- Detailed trend charts (SVG, no external libs) ----------
 const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
 
@@ -787,6 +861,7 @@ function renderAll(){
   buildTrendPivotTable(o1, 'tbl-odr', 'an-odr', 'ODR');
   buildTrendPivotTable(o2, 'tbl-opr', 'an-opr', 'OPR');
   buildFD();
+  buildAging();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
@@ -867,3 +942,5 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 <!-- redeploy-trigger-v4 -->
 
 <!-- redeploy-trigger-v5 -->
+
+<!-- redeploy-trigger-v6 -->
