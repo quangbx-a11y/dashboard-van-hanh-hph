@@ -6,10 +6,11 @@
 <title>Dashboard Vận Hành Khu Vực</title>
 <style>
   :root{
-    --bg:#0f172a; --panel:#111827; --panel2:#1a2332; --border:#2a3648;
-    --text:#e5e9f0; --muted:#93a2b8; --accent:#3aa0ff; --green:#22c55e;
-    --yellow:#eab308; --red:#ef4444; --good:#16a34a; --bad:#dc2626;
-    --activeBg:#ea580c;
+    --bg:#0a0e1a; --panel:#12172a; --panel2:#1a2140; --border:#30365a;
+    --text:#eef1f7; --muted:#98a2c0; --accent:#d4af37; --green:#2fbf71;
+    --yellow:#f0c419; --red:#e5484d; --good:#2fbf71; --bad:#e5484d;
+    --activeBg:linear-gradient(135deg,#b8860b,#8b6914);
+    --gold-soft:rgba(212,175,55,.35);
     color-scheme: dark;
   }
   *{box-sizing:border-box;}
@@ -17,13 +18,13 @@
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
   .app{display:flex;min-height:100vh;}
   .sidebar{width:252px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
-  .sidebar-header h1{font-size:14.5px;margin:0;line-height:1.35;letter-spacing:.02em;text-transform:uppercase;}
+  .sidebar-header h1{font-size:14.5px;margin:0;line-height:1.35;letter-spacing:.02em;text-transform:uppercase;background:linear-gradient(135deg,#f0d878,#d4af37 45%,#a67c1e);-webkit-background-clip:text;background-clip:text;color:transparent;}
   .sidebar-header .sub{color:var(--muted);font-size:11px;margin-top:5px;}
   .sidebar-nav{margin-top:18px;display:flex;flex-direction:column;gap:2px;flex:1;}
   .sb-section{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin:14px 6px 4px;font-weight:700;}
   .sb-item{display:flex;align-items:center;gap:9px;background:none;border:none;color:var(--muted);padding:9px 10px;border-radius:8px;font-size:13px;cursor:pointer;text-align:left;width:100%;font-family:inherit;}
   .sb-item:hover{background:var(--panel2);color:var(--text);}
-  .sb-item.active{background:var(--activeBg);color:#fff;font-weight:600;}
+  .sb-item.active{background:var(--activeBg);color:#1a1206;font-weight:700;box-shadow:0 2px 8px var(--gold-soft);}
   .sb-icon{font-size:14px;width:18px;text-align:center;flex-shrink:0;}
   .sidebar-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
   .sb-btn{border:none;border-radius:8px;padding:10px 12px;font-size:12.5px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;color:#fff;}
@@ -54,7 +55,7 @@
   .office-list{display:flex;flex-wrap:wrap;gap:6px;max-width:520px;}
   .office-chip{border:1px solid var(--border);background:var(--panel2);color:var(--muted);padding:5px 10px;border-radius:16px;font-size:12px;cursor:pointer;user-select:none;}
   .office-chip.on{background:var(--accent);color:#04121f;border-color:var(--accent);font-weight:600;}
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:24px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:24px;box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 6px 18px rgba(0,0,0,.25);}
   .panel h2{margin:0 0 4px;font-size:16px;}
   .panel .desc{color:var(--muted);font-size:12.5px;margin-bottom:14px;}
   .ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;}
@@ -420,6 +421,7 @@ async function fetchAll(){
     const agingRows = rows.filter(r=>r[1]==='Hải Phòng' && r[2]).map(r=>({
       office: (r[2]||'').toString().trim(),
       days: toNum(r[6]),
+      segment: (r[4]||'').toString().trim(),
     }));
     results['aging'] = agingRows;
     AGING_STATUS = agingRows.length>0 ? 'ok' : 'error';
@@ -467,6 +469,7 @@ async function fetchAll(){
     const backlogRows = rows.filter(r=>r[0] && /^\d/.test((r[0]||'').toString().trim())).map(r=>({
       office: (r[0]||'').toString().trim(),
       count: toNum(r[1]),
+      ttsCount: toNum(r[2]),
     }));
     results['backlog'] = backlogRows;
     BACKLOG_STATUS = backlogRows.length>0 ? 'ok' : 'error';
@@ -829,7 +832,7 @@ function buildFD(){
 function aggregateAging(rows){
   const byOffice = {};
   rows.forEach(r=>{
-    if(!byOffice[r.office]) byOffice[r.office] = {b57:0,b710:0,b1015:0,b15p:0,total:0};
+    if(!byOffice[r.office]) byOffice[r.office] = {b57:0,b710:0,b1015:0,b15p:0,total:0,tts:0};
     const o = byOffice[r.office];
     const d = r.days;
     if(d>=15) o.b15p++;
@@ -837,6 +840,7 @@ function aggregateAging(rows){
     else if(d>=7) o.b710++;
     else o.b57++;
     o.total++;
+    if(/^TTS/i.test(r.segment||'')) o.tts++;
   });
   return byOffice;
 }
@@ -856,8 +860,8 @@ function buildAging(){
   const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
   officeRows.sort((a,b)=>b.total-a.total);
 
-  const grand = {b57:0,b710:0,b1015:0,b15p:0,total:0};
-  officeRows.forEach(r=>{ grand.b57+=r.b57; grand.b710+=r.b710; grand.b1015+=r.b1015; grand.b15p+=r.b15p; grand.total+=r.total; });
+  const grand = {b57:0,b710:0,b1015:0,b15p:0,total:0,tts:0};
+  officeRows.forEach(r=>{ grand.b57+=r.b57; grand.b710+=r.b710; grand.b1015+=r.b1015; grand.b15p+=r.b15p; grand.total+=r.total; grand.tts+=r.tts; });
 
   function badgeStyle(total){
     if(total>=50) return 'background:var(--bad);color:#fff;font-weight:700;';
@@ -865,14 +869,15 @@ function buildAging(){
     return '';
   }
 
-  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>5-7 ngày</th><th>7-10 ngày</th><th>10-15 ngày</th><th>&gt;15 ngày</th><th>Tổng tồn</th></tr>';
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>5-7 ngày</th><th>7-10 ngày</th><th>10-15 ngày</th><th>&gt;15 ngày</th><th>Tổng tồn</th><th>Đơn TTS</th></tr>';
   officeRows.forEach((row, idx)=>{
     html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
     html += '<td>'+fmtNum(row.b57)+'</td><td>'+fmtNum(row.b710)+'</td><td>'+fmtNum(row.b1015)+'</td><td>'+fmtNum(row.b15p)+'</td>';
-    html += '<td><span class="heat" style="'+badgeStyle(row.total)+'padding:2px 8px;">'+fmtNum(row.total)+'</span></td></tr>';
+    html += '<td><span class="heat" style="'+badgeStyle(row.total)+'padding:2px 8px;">'+fmtNum(row.total)+'</span></td>';
+    html += '<td>'+fmtNum(row.tts)+'</td></tr>';
   });
   html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
-  html += '<td>'+fmtNum(grand.b57)+'</td><td>'+fmtNum(grand.b710)+'</td><td>'+fmtNum(grand.b1015)+'</td><td>'+fmtNum(grand.b15p)+'</td><td>'+fmtNum(grand.total)+'</td></tr>';
+  html += '<td>'+fmtNum(grand.b57)+'</td><td>'+fmtNum(grand.b710)+'</td><td>'+fmtNum(grand.b1015)+'</td><td>'+fmtNum(grand.b15p)+'</td><td>'+fmtNum(grand.total)+'</td><td>'+fmtNum(grand.tts)+'</td></tr>';
   html += '</table>';
   el.innerHTML = html;
 }
@@ -967,6 +972,7 @@ function buildBacklog(){
   if(scoped.length===0) scoped = DATA.backlog.slice(); // du lieu da duoc loc san theo AM o Google Sheet
   const rowsSorted = scoped.slice().sort((a,b)=>b.count-a.count);
   const grandTotal = rowsSorted.reduce((s,r)=>s+r.count, 0);
+  const grandTts = rowsSorted.reduce((s,r)=>s+(r.ttsCount||0), 0);
 
   function badgeStyle(count){
     if(count>=50) return 'background:var(--bad);color:#fff;font-weight:700;';
@@ -974,13 +980,14 @@ function buildBacklog(){
     return '';
   }
 
-  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số đơn backlog &gt;48h chưa có lần giao</th></tr>';
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số đơn backlog &gt;48h chưa có lần giao</th><th>Đơn TTS</th></tr>';
   rowsSorted.forEach((row, idx)=>{
     html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
-    html += '<td><span class="heat" style="'+badgeStyle(row.count)+'padding:2px 8px;">'+fmtNum(row.count)+'</span></td></tr>';
+    html += '<td><span class="heat" style="'+badgeStyle(row.count)+'padding:2px 8px;">'+fmtNum(row.count)+'</span></td>';
+    html += '<td>'+fmtNum(row.ttsCount||0)+'</td></tr>';
   });
   html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
-  html += '<td>'+fmtNum(grandTotal)+'</td></tr>';
+  html += '<td>'+fmtNum(grandTotal)+'</td><td>'+fmtNum(grandTts)+'</td></tr>';
   html += '</table>';
   el.innerHTML = html;
 }
@@ -1173,8 +1180,9 @@ function summarizeAging(){
   const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
   officeRows.sort((a,b)=>b.total-a.total);
   const grandTotal = officeRows.reduce((s,r)=>s+r.total, 0);
+  const grandTts = officeRows.reduce((s,r)=>s+r.tts, 0);
   const top = officeRows.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.total)+')').join(', ');
-  return 'Tổng tồn đọng >5 ngày: '+fmtNum(grandTotal)+' đơn. Cao nhất: '+top+'.';
+  return 'Tổng tồn đọng >5 ngày: '+fmtNum(grandTotal)+' đơn (trong đó '+fmtNum(grandTts)+' đơn TTS). Cao nhất: '+top+'.';
 }
 
 function summarizeViolations(){
@@ -1204,8 +1212,9 @@ function summarizeBacklog(){
   if(scoped.length===0) scoped = DATA.backlog.slice();
   const rowsSorted = scoped.slice().sort((a,b)=>b.count-a.count);
   const grandTotal = rowsSorted.reduce((s,r)=>s+r.count, 0);
+  const grandTts = rowsSorted.reduce((s,r)=>s+(r.ttsCount||0), 0);
   const top = rowsSorted.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.count)+')').join(', ');
-  return 'Tổng backlog >48h chưa có lần giao: '+fmtNum(grandTotal)+' đơn. Cao nhất: '+top+'.';
+  return 'Tổng backlog >48h chưa có lần giao: '+fmtNum(grandTotal)+' đơn (trong đó '+fmtNum(grandTts)+' đơn TTS). Cao nhất: '+top+'.';
 }
 
 function buildTelegramSummaryText(){
