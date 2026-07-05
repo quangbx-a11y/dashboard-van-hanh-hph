@@ -124,6 +124,10 @@
       <button class="sb-item" data-view="aging"><span class="sb-icon">📛</span>Aging tồn &gt;5 ngày</button>
       <button class="sb-item" data-view="backlog"><span class="sb-icon">🚧</span>Backlog &gt;48h chưa có lần giao</button>
 
+      <div class="sb-section">Tỉ lệ gán và luân chuyển</div>
+      <button class="sb-item" data-view="ganty"><span class="sb-icon">🔗</span>% Gán</button>
+      <button class="sb-item" data-view="backloglc"><span class="sb-icon">🔀</span>Backlog LC</button>
+
       <div class="sb-section">Vi phạm</div>
       <button class="sb-item" data-view="violations"><span class="sb-icon">🧷</span>Vi phạm đồng phục &amp; hành vi</button>
 
@@ -232,6 +236,22 @@
       </div>
     </div>
 
+    <div id="view-ganty" class="view hidden">
+      <div class="panel">
+        <h2>% Gán theo bưu cục</h2>
+        <div class="desc">Snapshot số đơn (Lấy/Giao/Trả) đang chờ gán, chia theo thời gian tồn đọng (giờ), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý. Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo thời điểm cập nhật của sheet nguồn). Xếp hạng theo tổng đơn, nhiều nhất lên đầu.</div>
+        <div id="ganty-content"></div>
+      </div>
+    </div>
+
+    <div id="view-backloglc" class="view hidden">
+      <div class="panel">
+        <h2>Backlog LC (luân chuyển) theo bưu cục</h2>
+        <div class="desc">Snapshot số đơn luân chuyển giao/trả đang tồn đọng, chia theo thời gian tồn đọng (giờ), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý. Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo thời điểm cập nhật của sheet nguồn). Xếp hạng theo tổng đơn, nhiều nhất lên đầu.</div>
+        <div id="backloglc-content"></div>
+      </div>
+    </div>
+
     <div id="view-violations" class="view hidden">
       <div class="panel">
         <h2>Vi phạm đồng phục &amp; hành vi theo bưu cục</h2>
@@ -278,7 +298,9 @@ const SHEETS = {
   aging: 2108585336,
   violations: 1961661235,
   cod: 705071301,
-  backlog: 65383740
+  backlog: 65383740,
+  ganty: 1500642437,
+  backlog_lc: 428697360
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -292,6 +314,8 @@ let AGING_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let VIOLATIONS_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let COD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let BACKLOG_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let GANTY_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let BACKLOG_LC_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
@@ -362,6 +386,14 @@ function parseGvizDateTime(t){
 }
 function toNum(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
 function isAggregateRow(office){ return /^(grand\s*)?total$/i.test((office||'').trim()); }
+
+const BACKLOG_LC_BUCKETS = ['0_6','6_12','12_24','24_36','36_48','48_72','72_96','96_120'];
+const GANTY_BUCKETS = ['0_6','6_12','12_24','24_36','36_48','48_72','72_96','96_120','120_192','192'];
+function bucketLabel(b){
+  if(b==='192') return '>192h';
+  const parts = b.split('_');
+  return parts[0]+'-'+parts[1]+'h';
+}
 
 async function fetchAll(){
   const results = {};
@@ -476,6 +508,36 @@ async function fetchAll(){
   }catch(e){
     BACKLOG_STATUS = 'error';
     results['backlog'] = [];
+  }
+  // % Gan - don chua/dang/da co chuyen di trong ngay, chi tiet tung don, own gid
+  try{
+    const json = await loadSheetJSONP(SHEETS.ganty, 'ganty');
+    const {rows} = gvizToRows(json);
+    const gantyRows = rows.filter(r=>r[7]).map(r=>({
+      office: (r[7]||'').toString().trim(),
+      segment: (r[3]||'').toString().trim(),
+      bucket: (r[6]||'').toString().trim(),
+    }));
+    results['ganty'] = gantyRows;
+    GANTY_STATUS = gantyRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    GANTY_STATUS = 'error';
+    results['ganty'] = [];
+  }
+  // Backlog LC - don luan chuyen giao/tra ton dong, chi tiet tung don, own gid
+  try{
+    const json = await loadSheetJSONP(SHEETS.backlog_lc, 'backlog_lc');
+    const {rows} = gvizToRows(json);
+    const backlogLcRows = rows.filter(r=>r[6]).map(r=>({
+      office: (r[6]||'').toString().trim(),
+      segment: (r[3]||'').toString().trim(),
+      bucket: (r[5]||'').toString().trim(),
+    }));
+    results['backlog_lc'] = backlogLcRows;
+    BACKLOG_LC_STATUS = backlogLcRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    BACKLOG_LC_STATUS = 'error';
+    results['backlog_lc'] = [];
   }
   return results;
 }
@@ -992,6 +1054,66 @@ function buildBacklog(){
   el.innerHTML = html;
 }
 
+// ---------- Dashboard 8+9: generic bucket-based (Ty le gan / Backlog LC) ----------
+function aggregateBuckets(rows, buckets){
+  const byOffice = {};
+  rows.forEach(r=>{
+    if(!byOffice[r.office]){
+      byOffice[r.office] = {total:0, tts:0, byBucket:{}};
+      buckets.forEach(b=>byOffice[r.office].byBucket[b]=0);
+    }
+    const o = byOffice[r.office];
+    if(Object.prototype.hasOwnProperty.call(o.byBucket, r.bucket)) o.byBucket[r.bucket]++;
+    o.total++;
+    if(/^TTS/i.test(r.segment||'')) o.tts++;
+  });
+  return byOffice;
+}
+
+function buildBucketTable(el, status, data, buckets){
+  if(status !== 'ok' || !data || data.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu.</div>';
+    return;
+  }
+  const scoped = data.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
+    return;
+  }
+  const byOffice = aggregateBuckets(scoped, buckets);
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.total-a.total);
+
+  const grand = {total:0, tts:0, byBucket:{}};
+  buckets.forEach(b=>grand.byBucket[b]=0);
+  officeRows.forEach(r=>{
+    grand.total += r.total; grand.tts += r.tts;
+    buckets.forEach(b=>{ grand.byBucket[b] += r.byBucket[b]; });
+  });
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th>';
+  buckets.forEach(b=>{ html += '<th>'+bucketLabel(b)+'</th>'; });
+  html += '<th>Đơn TTS</th><th>Tổng</th></tr>';
+  officeRows.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    buckets.forEach(b=>{ html += '<td>'+fmtNum(row.byBucket[b])+'</td>'; });
+    html += '<td>'+fmtNum(row.tts)+'</td><td><b>'+fmtNum(row.total)+'</b></td></tr>';
+  });
+  html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  buckets.forEach(b=>{ html += '<td>'+fmtNum(grand.byBucket[b])+'</td>'; });
+  html += '<td>'+fmtNum(grand.tts)+'</td><td>'+fmtNum(grand.total)+'</td></tr>';
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+function buildGanty(){
+  buildBucketTable(document.getElementById('ganty-content'), GANTY_STATUS, DATA.ganty, GANTY_BUCKETS);
+}
+
+function buildBacklogLC(){
+  buildBucketTable(document.getElementById('backloglc-content'), BACKLOG_LC_STATUS, DATA.backlog_lc, BACKLOG_LC_BUCKETS);
+}
+
 // ---------- Detailed trend charts (SVG, no external libs) ----------
 const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
 
@@ -1113,6 +1235,8 @@ function renderAll(){
   buildViolations();
   buildCOD();
   buildBacklog();
+  buildGanty();
+  buildBacklogLC();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
@@ -1217,6 +1341,32 @@ function summarizeBacklog(){
   return 'Tổng backlog >48h chưa có lần giao: '+fmtNum(grandTotal)+' đơn (trong đó '+fmtNum(grandTts)+' đơn TTS). Cao nhất: '+top+'.';
 }
 
+function summarizeBucketTable(status, data){
+  if(status !== 'ok' || !data || data.length===0) return 'Không có dữ liệu.';
+  const scoped = data.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) return 'Không có dữ liệu ở các bưu cục đang chọn.';
+  const byOffice = {};
+  scoped.forEach(r=>{
+    if(!byOffice[r.office]) byOffice[r.office] = {total:0, tts:0};
+    byOffice[r.office].total++;
+    if(/^TTS/i.test(r.segment||'')) byOffice[r.office].tts++;
+  });
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.total-a.total);
+  const grandTotal = officeRows.reduce((s,r)=>s+r.total, 0);
+  const grandTts = officeRows.reduce((s,r)=>s+r.tts, 0);
+  const top = officeRows.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.total)+')').join(', ');
+  return 'Tổng: '+fmtNum(grandTotal)+' đơn (trong đó '+fmtNum(grandTts)+' đơn TTS). Cao nhất: '+top+'.';
+}
+
+function summarizeGanty(){
+  return summarizeBucketTable(GANTY_STATUS, DATA.ganty);
+}
+
+function summarizeBacklogLC(){
+  return summarizeBucketTable(BACKLOG_LC_STATUS, DATA.backlog_lc);
+}
+
 function buildTelegramSummaryText(){
   const lines = [];
   lines.push('📊 BÁO CÁO VẬN HÀNH KHU VỰC');
@@ -1248,6 +1398,12 @@ function buildTelegramSummaryText(){
   lines.push('');
   lines.push('🚧 Backlog >48h chưa có lần giao:');
   lines.push(summarizeBacklog());
+  lines.push('');
+  lines.push('🔗 % Gán:');
+  lines.push(summarizeGanty());
+  lines.push('');
+  lines.push('🔀 Backlog LC (luân chuyển):');
+  lines.push(summarizeBacklogLC());
   lines.push('');
   lines.push('Gửi lúc '+new Date().toLocaleString('vi-VN'));
   return lines.join('\n');
