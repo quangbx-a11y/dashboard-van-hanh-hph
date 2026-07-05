@@ -121,6 +121,7 @@
 
       <div class="sb-section">Tồn đọng</div>
       <button class="sb-item" data-view="aging"><span class="sb-icon">📛</span>Aging tồn &gt;5 ngày</button>
+      <button class="sb-item" data-view="backlog"><span class="sb-icon">🚧</span>Backlog &gt;48h chưa có lần giao</button>
 
       <div class="sb-section">Vi phạm</div>
       <button class="sb-item" data-view="violations"><span class="sb-icon">🧷</span>Vi phạm đồng phục &amp; hành vi</button>
@@ -222,6 +223,14 @@
       </div>
     </div>
 
+    <div id="view-backlog" class="view hidden">
+      <div class="panel">
+        <h2>Backlog &gt;48h chưa có lần giao theo bưu cục</h2>
+        <div class="desc">Tổng hợp số đơn tồn backlog quá 48 giờ và chưa có lần giao nào (nguồn: sheet team OE "Data BACKLOG &gt;48H CHƯA LẦN GIAO"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý. Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo thời điểm cập nhật của sheet nguồn). Xếp hạng theo số đơn, nhiều nhất lên đầu.</div>
+        <div id="backlog-content"></div>
+      </div>
+    </div>
+
     <div id="view-violations" class="view hidden">
       <div class="panel">
         <h2>Vi phạm đồng phục &amp; hành vi theo bưu cục</h2>
@@ -267,7 +276,8 @@ const SHEETS = {
   fd: 886614472,
   aging: 2108585336,
   violations: 1961661235,
-  cod: 705071301
+  cod: 705071301,
+  backlog: 65383740
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -280,6 +290,7 @@ let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let AGING_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let VIOLATIONS_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let COD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let BACKLOG_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
@@ -448,6 +459,20 @@ async function fetchAll(){
   }catch(e){
     COD_STATUS = 'error';
     results['cod'] = [];
+  }
+  // Backlog >48h chua co lan giao (nguon: team OE, da loc san AM = Bui Xuan Quang), own gid
+  try{
+    const json = await loadSheetJSONP(SHEETS.backlog, 'backlog');
+    const {rows} = gvizToRows(json);
+    const backlogRows = rows.filter(r=>r[0] && /^\d/.test((r[0]||'').toString().trim())).map(r=>({
+      office: (r[0]||'').toString().trim(),
+      count: toNum(r[1]),
+    }));
+    results['backlog'] = backlogRows;
+    BACKLOG_STATUS = backlogRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    BACKLOG_STATUS = 'error';
+    results['backlog'] = [];
   }
   return results;
 }
@@ -931,6 +956,35 @@ function buildCOD(){
   el.innerHTML = html;
 }
 
+// ---------- Dashboard 7: Backlog >48h chua co lan giao ----------
+function buildBacklog(){
+  const el = document.getElementById('backlog-content');
+  if(BACKLOG_STATUS !== 'ok' || !DATA.backlog || DATA.backlog.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu backlog &gt;48h chưa có lần giao.</div>';
+    return;
+  }
+  let scoped = DATA.backlog.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) scoped = DATA.backlog.slice(); // du lieu da duoc loc san theo AM o Google Sheet
+  const rowsSorted = scoped.slice().sort((a,b)=>b.count-a.count);
+  const grandTotal = rowsSorted.reduce((s,r)=>s+r.count, 0);
+
+  function badgeStyle(count){
+    if(count>=50) return 'background:var(--bad);color:#fff;font-weight:700;';
+    if(count>=15) return 'background:var(--yellow);color:#04121f;font-weight:700;';
+    return '';
+  }
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>Số đơn backlog &gt;48h chưa có lần giao</th></tr>';
+  rowsSorted.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    html += '<td><span class="heat" style="'+badgeStyle(row.count)+'padding:2px 8px;">'+fmtNum(row.count)+'</span></td></tr>';
+  });
+  html += '<tr class="grand-total"><td class="stt-cell"></td><td class="office-cell">Grand Total</td>';
+  html += '<td>'+fmtNum(grandTotal)+'</td></tr>';
+  html += '</table>';
+  el.innerHTML = html;
+}
+
 // ---------- Detailed trend charts (SVG, no external libs) ----------
 const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
 
@@ -1051,6 +1105,7 @@ function renderAll(){
   buildAging();
   buildViolations();
   buildCOD();
+  buildBacklog();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
@@ -1143,6 +1198,16 @@ function summarizeCOD(){
   return rowsSorted.map(r=>officeLabel(r.office)+': '+fmtPct(r.ck)+' CK / '+fmtPct(r.tienMat)+' tiền mặt').join('\n');
 }
 
+function summarizeBacklog(){
+  if(BACKLOG_STATUS !== 'ok' || !DATA.backlog || DATA.backlog.length===0) return 'Không có dữ liệu backlog >48h chưa có lần giao.';
+  let scoped = DATA.backlog.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) scoped = DATA.backlog.slice();
+  const rowsSorted = scoped.slice().sort((a,b)=>b.count-a.count);
+  const grandTotal = rowsSorted.reduce((s,r)=>s+r.count, 0);
+  const top = rowsSorted.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.count)+')').join(', ');
+  return 'Tổng backlog >48h chưa có lần giao: '+fmtNum(grandTotal)+' đơn. Cao nhất: '+top+'.';
+}
+
 function buildTelegramSummaryText(){
   const lines = [];
   lines.push('📊 BÁO CÁO VẬN HÀNH KHU VỰC');
@@ -1171,6 +1236,9 @@ function buildTelegramSummaryText(){
   lines.push('');
   lines.push('💰 Tỷ lệ nộp COD (CK/Tiền mặt):');
   lines.push(summarizeCOD());
+  lines.push('');
+  lines.push('🚧 Backlog >48h chưa có lần giao:');
+  lines.push(summarizeBacklog());
   lines.push('');
   lines.push('Gửi lúc '+new Date().toLocaleString('vi-VN'));
   return lines.join('\n');
