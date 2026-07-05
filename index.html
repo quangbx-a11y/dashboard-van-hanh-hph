@@ -124,6 +124,9 @@
 
       <div class="sb-section">Vi phạm</div>
       <button class="sb-item" data-view="violations"><span class="sb-icon">🧷</span>Vi phạm đồng phục &amp; hành vi</button>
+
+      <div class="sb-section">COD</div>
+      <button class="sb-item" data-view="cod"><span class="sb-icon">💰</span>Tỷ lệ nộp COD (CK/Tiền mặt)</button>
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
@@ -227,6 +230,14 @@
       </div>
     </div>
 
+    <div id="view-cod" class="view hidden">
+      <div class="panel">
+        <h2>Tỷ lệ nộp COD theo bưu cục (CK / Tiền mặt)</h2>
+        <div class="desc">Tỷ lệ hình thức thanh toán khi nộp COD, chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Nguồn: sheet "BaoCao_COD_XBG". Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo ngày cập nhật của sheet nguồn). Xếp hạng theo %CK, cao nhất lên đầu.</div>
+        <div id="cod-content"></div>
+      </div>
+    </div>
+
     <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
   </main>
 
@@ -255,7 +266,8 @@ const SHEETS = {
   opr_tts: 'OPR TTS',
   fd: 886614472,
   aging: 2108585336,
-  violations: 1961661235
+  violations: 1961661235,
+  cod: 705071301
 };
 
 // Fallback snapshot fetched at build time (used if live JSONP fetch fails, e.g. offline preview)
@@ -267,6 +279,7 @@ let LAST_UPDATED = FALLBACK_TIME;
 let FD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let AGING_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let VIOLATIONS_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
+let COD_STATUS = 'unknown'; // 'ok' | 'error' | 'unknown'
 let currentView = 'overview';
 
 function fmtPct(x){ return (x*100).toFixed(1)+'%'; }
@@ -420,6 +433,21 @@ async function fetchAll(){
   }catch(e){
     VIOLATIONS_STATUS = 'error';
     results['violations'] = [];
+  }
+  // Bao cao ty le nop COD theo buu cuc (CK vs Tien mat) - "BaoCao_XBG", own gid
+  try{
+    const json = await loadSheetJSONP(SHEETS.cod, 'cod');
+    const {rows} = gvizToRows(json);
+    const codRows = rows.filter(r=>r[0]).map(r=>({
+      office: (r[0]||'').toString().trim(),
+      ck: toNum(r[1]),
+      tienMat: toNum(r[2]),
+    }));
+    results['cod'] = codRows;
+    COD_STATUS = codRows.length>0 ? 'ok' : 'error';
+  }catch(e){
+    COD_STATUS = 'error';
+    results['cod'] = [];
   }
   return results;
 }
@@ -880,6 +908,29 @@ function buildViolations(){
   el.innerHTML = html;
 }
 
+// ---------- Dashboard 6: Ty le nop COD (CK vs Tien mat) ----------
+function buildCOD(){
+  const el = document.getElementById('cod-content');
+  if(COD_STATUS !== 'ok' || !DATA.cod || DATA.cod.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu tỷ lệ nộp COD.</div>';
+    return;
+  }
+  const scoped = DATA.cod.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0){
+    el.innerHTML = '<div class="placeholder">Không có dữ liệu COD ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
+    return;
+  }
+  const rowsSorted = scoped.slice().sort((a,b)=>b.ck-a.ck);
+
+  let html = '<table class="scroll-wrap"><tr><th class="stt-cell">STT</th><th class="office-cell">Bưu cục</th><th>% Chuyển khoản (CK)</th><th>% Tiền mặt</th></tr>';
+  rowsSorted.forEach((row, idx)=>{
+    html += '<tr><td class="stt-cell">'+(idx+1)+'</td><td class="office-cell">'+officeLabel(row.office)+'</td>';
+    html += '<td>'+fmtPct(row.ck)+'</td><td>'+fmtPct(row.tienMat)+'</td></tr>';
+  });
+  html += '</table>';
+  el.innerHTML = html;
+}
+
 // ---------- Detailed trend charts (SVG, no external libs) ----------
 const CHART_COLORS = ['#3aa0ff','#f97316','#22c55e','#eab308','#a855f7','#ec4899','#14b8a6','#94a3b8','#f43f5e'];
 
@@ -999,6 +1050,7 @@ function renderAll(){
   buildFD();
   buildAging();
   buildViolations();
+  buildCOD();
   document.getElementById('ov-gtc-tong').innerHTML = document.getElementById('an-gtc-tong').innerHTML;
   document.getElementById('ov-gtc-tts').innerHTML = document.getElementById('an-gtc-tts').innerHTML;
   document.getElementById('ov-odr').innerHTML = document.getElementById('an-odr').innerHTML;
