@@ -1122,6 +1122,27 @@ function summarizeAging(){
   return 'Tổng tồn đọng >5 ngày: '+fmtNum(grandTotal)+' đơn. Cao nhất: '+top+'.';
 }
 
+function summarizeViolations(){
+  if(VIOLATIONS_STATUS !== 'ok' || !DATA.violations || DATA.violations.length===0) return 'Không có dữ liệu vi phạm đồng phục & hành vi.';
+  const scoped = DATA.violations.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) return 'Không có vi phạm nào ở các bưu cục đang chọn.';
+  const byOffice = aggregateViolations(scoped);
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.count-a.count);
+  const grandCount = officeRows.reduce((s,r)=>s+r.count, 0);
+  const grandFine = officeRows.reduce((s,r)=>s+r.fine, 0);
+  const top = officeRows.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.count)+')').join(', ');
+  return 'Tổng '+fmtNum(grandCount)+' lỗi, '+fmtNum(grandFine)+'đ tiền phạt. Cao nhất: '+top+'.';
+}
+
+function summarizeCOD(){
+  if(COD_STATUS !== 'ok' || !DATA.cod || DATA.cod.length===0) return 'Không có dữ liệu tỷ lệ nộp COD.';
+  const scoped = DATA.cod.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) return 'Không có dữ liệu COD ở các bưu cục đang chọn.';
+  const rowsSorted = scoped.slice().sort((a,b)=>b.ck-a.ck);
+  return rowsSorted.map(r=>officeLabel(r.office)+': '+fmtPct(r.ck)+' CK / '+fmtPct(r.tienMat)+' tiền mặt').join('\n');
+}
+
 function buildTelegramSummaryText(){
   const lines = [];
   lines.push('📊 BÁO CÁO VẬN HÀNH KHU VỰC');
@@ -1144,6 +1165,12 @@ function buildTelegramSummaryText(){
   lines.push('');
   lines.push('📛 Aging tồn >5 ngày:');
   lines.push(summarizeAging());
+  lines.push('');
+  lines.push('🧷 Vi phạm đồng phục & hành vi:');
+  lines.push(summarizeViolations());
+  lines.push('');
+  lines.push('💰 Tỷ lệ nộp COD (CK/Tiền mặt):');
+  lines.push(summarizeCOD());
   lines.push('');
   lines.push('Gửi lúc '+new Date().toLocaleString('vi-VN'));
   return lines.join('\n');
