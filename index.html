@@ -222,7 +222,7 @@
     <div id="view-violations" class="view hidden">
       <div class="panel">
         <h2>Vi phạm đồng phục &amp; hành vi theo bưu cục</h2>
-        <div class="desc">Tổng hợp lỗi vi phạm đồng phục &amp; hành vi bưu cục (nguồn: sheet "Giải trình vi phạm"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên), trong khoảng ngày đang lọc. Tô đỏ bưu cục ≥10 lỗi, tô vàng ≥5 lỗi. Xếp hạng theo số lỗi, nhiều nhất lên đầu.</div>
+        <div class="desc">Tổng hợp toàn bộ lỗi vi phạm đồng phục &amp; hành vi bưu cục (nguồn: sheet "Giải trình vi phạm"), chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Không áp dụng bộ lọc ngày ở trên (hiển thị toàn bộ lịch sử). Tô đỏ bưu cục ≥10 lỗi, tô vàng ≥5 lỗi. Xếp hạng theo số lỗi, nhiều nhất lên đầu.</div>
         <div id="violations-content"></div>
       </div>
     </div>
@@ -320,6 +320,21 @@ function parseDate(t){
   const m = s.match(/(\d{4}-\d{2}-\d{2})/);
   return m ? m[1] : s;
 }
+function parseGvizDateTime(t){
+  // Handles gviz "Date(y,m,d,...)" objects (month is 0-indexed) as well as plain "yyyy/mm/dd ..." strings.
+  if(t===null||t===undefined) return '';
+  const s = String(t);
+  const m1 = s.match(/Date\((\d+),(\d+),(\d+)/);
+  if(m1){
+    const y = m1[1];
+    const mo = String(parseInt(m1[2],10)+1).padStart(2,'0');
+    const d = String(parseInt(m1[3],10)).padStart(2,'0');
+    return y+'-'+mo+'-'+d;
+  }
+  const m2 = s.match(/(\d{4})[\/-](\d{2})[\/-](\d{2})/);
+  if(m2) return m2[1]+'-'+m2[2]+'-'+m2[3];
+  return '';
+}
 function toNum(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
 function isAggregateRow(office){ return /^(grand\s*)?total$/i.test((office||'').trim()); }
 
@@ -394,7 +409,7 @@ async function fetchAll(){
     const {rows} = gvizToRows(json);
     const violationRows = rows.filter(r=>r[0]==='XBG' && r[5]).map(r=>({
       office: (r[5]||'').toString().trim(),
-      date: (r[8]||'').toString().slice(0,10).replace(/\//g,'-'),
+      date: parseGvizDateTime(r[8]),
       fine: toNum(r[17]),
       reason: (r[10]||'').toString().trim(),
       status: (r[22]||'').toString().trim(),
@@ -825,9 +840,9 @@ function buildViolations(){
     el.innerHTML = '<div class="placeholder">Không có dữ liệu vi phạm đồng phục &amp; hành vi.</div>';
     return;
   }
-  const scoped = DATA.violations.filter(r=>selectedOffices.has(r.office) && inRange(r.date));
+  const scoped = DATA.violations.filter(r=>selectedOffices.has(r.office));
   if(scoped.length===0){
-    el.innerHTML = '<div class="placeholder">Không có vi phạm nào ở các bưu cục đang chọn (AM Bùi Xuân Quang) trong khoảng ngày đang lọc.</div>';
+    el.innerHTML = '<div class="placeholder">Không có vi phạm nào ở các bưu cục đang chọn (AM Bùi Xuân Quang).</div>';
     return;
   }
   const byOffice = aggregateViolations(scoped);
