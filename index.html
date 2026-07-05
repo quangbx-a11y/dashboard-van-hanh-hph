@@ -1123,6 +1123,7 @@ const GANTY_EXTRA_COLS = [
   {key:'over24', label:'Tồn &gt;24h', test:r=>bucketLowerBound(r.bucket)>=24},
   {key:'over24tts', label:'TTS tồn &gt;24h', test:r=>bucketLowerBound(r.bucket)>=24 && /^TTS/i.test(r.segment||'')},
   {key:'under12', label:'Đơn 0-12h', test:r=>bucketLowerBound(r.bucket)<12},
+  {key:'under12tts', label:'TTS đơn 0-12h', test:r=>bucketLowerBound(r.bucket)<12 && /^TTS/i.test(r.segment||'')},
 ];
 const BACKLOG_LC_EXTRA_COLS = [
   {key:'over36', label:'Tồn &gt;36h', test:r=>bucketLowerBound(r.bucket)>=36},
