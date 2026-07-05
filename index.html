@@ -31,6 +31,18 @@
   .sb-btn-refresh:disabled{opacity:.5;cursor:wait;}
   .sb-btn-analysis{background:linear-gradient(135deg,#7c3aed,#2563eb);}
   .sb-btn-analysis:disabled{opacity:.35;cursor:not-allowed;}
+  .sb-btn-telegram{background:#229ED9;}
+  .sb-btn-telegram:disabled{opacity:.5;cursor:wait;}
+  .sb-btn-telegram-config{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:100;}
+  .modal-overlay.hidden{display:none;}
+  .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px 24px;width:380px;max-width:90vw;}
+  .modal-box h3{margin:0 0 8px;font-size:16px;}
+  .modal-desc{color:var(--muted);font-size:12px;margin-bottom:14px;line-height:1.5;}
+  .modal-box label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.04em;}
+  .modal-box input{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:13px;font-family:inherit;}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;}
+  .modal-actions .sb-btn{padding:8px 16px;}
   .main{flex:1;min-width:0;padding:22px 28px 60px;max-width:1500px;}
   .topbar{margin-bottom:16px;}
   .page-title{font-size:19px;font-weight:700;}
@@ -112,6 +124,8 @@
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
+      <button class="sb-btn sb-btn-telegram" id="btnTelegramSend">📨 Bắn dữ liệu lên Telegram</button>
+      <button class="sb-btn sb-btn-telegram-config" id="btnTelegramConfig">⚙️ Cấu hình Telegram</button>
       <button class="sb-btn sb-btn-refresh" id="btnRefresh">⟳ Cập nhật dữ liệu</button>
     </div>
   </aside>
@@ -204,6 +218,21 @@
 
     <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
   </main>
+
+  <div id="tgModal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>⚙️ Cấu hình Telegram</h3>
+      <div class="modal-desc">Nhập Bot Token (lấy từ @BotFather) và Chat ID (id nhóm/kênh hoặc @username). Thông tin chỉ lưu trên trình duyệt này (localStorage), không gửi đi đâu khác ngoài Telegram khi bấm "Bắn dữ liệu".</div>
+      <label>Bot Token</label>
+      <input type="text" id="tgTokenInput" placeholder="123456789:ABCdefGhIJKlmNoPQRstuVwxYZ">
+      <label>Chat ID</label>
+      <input type="text" id="tgChatIdInput" placeholder="-1001234567890 hoặc @tenkenh">
+      <div class="modal-actions">
+        <button id="tgCancelBtn" class="sb-btn" style="background:var(--panel2);color:var(--text);">Hủy</button>
+        <button id="tgSaveBtn" class="sb-btn sb-btn-refresh">Lưu</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -895,6 +924,127 @@ document.getElementById('btnAnalysis').addEventListener('click', ()=>{
   if(!nowHidden) renderChartForView(currentView);
 });
 
+// ---------- Telegram ----------
+function stripHtml(html){
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return (tmp.textContent || tmp.innerText || '').trim();
+}
+
+function summarizeFD(){
+  if(FD_STATUS !== 'ok' || !DATA.fd || DATA.fd.length===0) return 'Không có dữ liệu FD (lỗi công thức #REF!).';
+  const rows = filterRows(DATA.fd);
+  if(rows.length===0) return 'Không có dữ liệu FD trong khoảng lọc hiện tại.';
+  const dates = lastNDates(rows, 2);
+  if(dates.length===0) return 'Không có dữ liệu FD trong khoảng lọc hiện tại.';
+  const lastDate = dates[dates.length-1];
+  const vol = volLookup();
+  const offices = Array.from(new Set(rows.map(r=>r.office)));
+  const byOfficeDate = {}; offices.forEach(o=>byOfficeDate[o]={});
+  rows.forEach(r=>{ byOfficeDate[r.office][r.date] = r; });
+  let totalTra = 0, worstOffice = null, worstPct = -1;
+  offices.forEach(o=>{
+    const r = byOfficeDate[o][lastDate];
+    if(!r) return;
+    const v = vol[o+'|'+lastDate] || 0;
+    const tra = Math.round(v*r.pctReturn);
+    totalTra += tra;
+    if(r.pctReturn > worstPct){ worstPct = r.pctReturn; worstOffice = o; }
+  });
+  if(worstOffice===null) return 'Không có dữ liệu FD trong khoảng lọc hiện tại.';
+  return 'Ngày '+dmy(lastDate)+': tổng '+fmtNum(totalTra)+' đơn trả. Bưu cục %Return cao nhất: '+officeLabel(worstOffice)+' ('+fmtPct(worstPct)+').';
+}
+
+function summarizeAging(){
+  if(AGING_STATUS !== 'ok' || !DATA.aging || DATA.aging.length===0) return 'Không có dữ liệu Aging tồn đọng trên 5 ngày.';
+  const scoped = DATA.aging.filter(r=>selectedOffices.has(r.office));
+  if(scoped.length===0) return 'Không có đơn tồn đọng >5 ngày ở các bưu cục đang chọn.';
+  const byOffice = aggregateAging(scoped);
+  const officeRows = Object.keys(byOffice).map(o=>({office:o, ...byOffice[o]}));
+  officeRows.sort((a,b)=>b.total-a.total);
+  const grandTotal = officeRows.reduce((s,r)=>s+r.total, 0);
+  const top = officeRows.slice(0,3).map(r=>officeLabel(r.office)+' ('+fmtNum(r.total)+')').join(', ');
+  return 'Tổng tồn đọng >5 ngày: '+fmtNum(grandTotal)+' đơn. Cao nhất: '+top+'.';
+}
+
+function buildTelegramSummaryText(){
+  const lines = [];
+  lines.push('📊 BÁO CÁO VẬN HÀNH KHU VỰC');
+  lines.push('Khoảng lọc: '+dmy(fromDate)+' → '+dmy(toDate));
+  lines.push('');
+  lines.push('🎯 GTC Tổng Ca 1+2:');
+  lines.push(stripHtml(document.getElementById('an-gtc-tong').innerHTML));
+  lines.push('');
+  lines.push('🚀 GTC TTS Ca 1+2:');
+  lines.push(stripHtml(document.getElementById('an-gtc-tts').innerHTML));
+  lines.push('');
+  lines.push('⏱️ ODR TTS (Ontime giao):');
+  lines.push(stripHtml(document.getElementById('an-odr').innerHTML));
+  lines.push('');
+  lines.push('📦 OPR TTS (Ontime lấy):');
+  lines.push(stripHtml(document.getElementById('an-opr').innerHTML));
+  lines.push('');
+  lines.push('⏳ FD (đơn trả):');
+  lines.push(summarizeFD());
+  lines.push('');
+  lines.push('📛 Aging tồn >5 ngày:');
+  lines.push(summarizeAging());
+  lines.push('');
+  lines.push('Gửi lúc '+new Date().toLocaleString('vi-VN'));
+  return lines.join('\n');
+}
+
+function openTelegramConfig(){
+  document.getElementById('tgTokenInput').value = localStorage.getItem('tg_bot_token') || '';
+  document.getElementById('tgChatIdInput').value = localStorage.getItem('tg_chat_id') || '';
+  document.getElementById('tgModal').classList.remove('hidden');
+}
+function closeTelegramConfig(){
+  document.getElementById('tgModal').classList.add('hidden');
+}
+document.getElementById('btnTelegramConfig').onclick = openTelegramConfig;
+document.getElementById('tgCancelBtn').onclick = closeTelegramConfig;
+document.getElementById('tgSaveBtn').onclick = ()=>{
+  const token = document.getElementById('tgTokenInput').value.trim();
+  const chatId = document.getElementById('tgChatIdInput').value.trim();
+  if(!token || !chatId){ alert('Vui lòng nhập đầy đủ Bot Token và Chat ID.'); return; }
+  localStorage.setItem('tg_bot_token', token);
+  localStorage.setItem('tg_chat_id', chatId);
+  closeTelegramConfig();
+  alert('Đã lưu cấu hình Telegram trên trình duyệt này.');
+};
+
+async function sendTelegramMessage(){
+  const token = localStorage.getItem('tg_bot_token');
+  const chatId = localStorage.getItem('tg_chat_id');
+  if(!token || !chatId){
+    alert('Chưa cấu hình Telegram. Vui lòng bấm "Cấu hình Telegram" để nhập Bot Token và Chat ID trước.');
+    openTelegramConfig();
+    return;
+  }
+  const btn = document.getElementById('btnTelegramSend');
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = '📨 Đang gửi...';
+  try{
+    const text = buildTelegramSummaryText();
+    const url = 'https://api.telegram.org/bot'+encodeURIComponent(token)+'/sendMessage';
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({chat_id: chatId, text: text})
+    });
+    const data = await resp.json();
+    if(!data.ok) throw new Error(data.description || 'Lỗi không xác định từ Telegram API');
+    btn.textContent = '✅ Đã gửi!';
+  }catch(e){
+    alert('Gửi Telegram thất bại: ' + e.message);
+    btn.textContent = '❌ Gửi lỗi';
+  }finally{
+    setTimeout(()=>{ btn.disabled = false; btn.textContent = original; }, 2500);
+  }
+}
+document.getElementById('btnTelegramSend').onclick = sendTelegramMessage;
+
 // ---------- Refresh ----------
 document.getElementById('btnRefresh').onclick = async ()=>{
   const btn = document.getElementById('btnRefresh');
@@ -945,13 +1095,3 @@ document.getElementById('btnRefresh').onclick = async ()=>{
 <!-- redeploy-trigger-v3 -->
 
 <!-- redeploy-trigger-v4 -->
-
-<!-- redeploy-trigger-v5 -->
-
-<!-- redeploy-trigger-v6 -->
-
-<!-- redeploy-trigger-v7 -->
-
-<!-- redeploy-trigger-v8 -->
-
-<!-- redeploy-trigger-v9 -->
