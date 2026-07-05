@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard Vận Hành Khu Vực</title>
+<link rel="shortcut icon" href="https://cdn.hstatic.net/themes/200000472237/1001423864/14/favicon.png?v=2889" type="image/png">
+<link rel="icon" href="https://cdn.hstatic.net/themes/200000472237/1001423864/14/favicon.png?v=2889" type="image/png">
 <style>
   :root{
     --bg:#f6f7f9; --panel:#ffffff; --panel2:#f2f3f6; --border:#e4e6ec;
@@ -18,6 +20,7 @@
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
   .app{display:flex;min-height:100vh;}
   .sidebar{width:252px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:20px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand-logo{display:block;width:150px;max-width:100%;height:auto;margin-bottom:14px;}
   .sidebar-header h1{font-size:14.5px;margin:0;line-height:1.35;letter-spacing:.02em;text-transform:uppercase;background:linear-gradient(135deg,#ff9f4d,#ff6600 45%,#cc5200);-webkit-background-clip:text;background-clip:text;color:transparent;}
   .sidebar-header .sub{color:var(--muted);font-size:11px;margin-top:5px;}
   .sidebar-nav{margin-top:18px;display:flex;flex-direction:column;gap:2px;flex:1;}
@@ -102,6 +105,7 @@
 <div class="app">
   <aside class="sidebar">
     <div class="sidebar-header">
+      <img class="brand-logo" src="https://cdn.hstatic.net/themes/200000472237/1001423864/14/logo.png?v=2889" alt="Giao Hàng Nhanh">
       <h1>Báo Cáo Vận Hành<br>Khu Vực</h1>
       <div class="sub">Người làm: Bùi Xuân Quang (Hải Phòng)</div>
     </div>
@@ -273,7 +277,10 @@
       </div>
     </div>
 
-    <footer>Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.</footer>
+    <footer>
+      <img src="https://cdn.hstatic.net/themes/200000472237/1001423864/14/logo.png?v=2889" alt="Giao Hàng Nhanh" style="height:20px;width:auto;display:block;margin:0 auto 8px;opacity:.75;">
+      Dữ liệu lấy trực tiếp từ Google Sheet qua Google Visualization API. Nhấn "Cập nhật dữ liệu" sau khi chỉnh sửa sheet để làm mới.
+    </footer>
   </main>
 
   <div id="tgModal" class="modal-overlay hidden">
