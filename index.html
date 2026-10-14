@@ -87,6 +87,12 @@
   .chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px;}
   .chart-legend .item{display:flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap;}
   .chart-legend .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;}
+  .bot-table td,.bot-table th{text-align:left;white-space:normal;vertical-align:top;}
+  .bot-table td:first-child{white-space:nowrap;font-weight:600;}
+  .bot-table code,.bot-list code{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12px;}
+  .bot-list{margin:0;padding-left:20px;font-size:13px;line-height:1.8;}
+  .bot-copy{float:right;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;}
+  .bot-copy:hover{border-color:var(--accent);color:var(--accent);}
   footer{text-align:center;color:var(--muted);font-size:12px;padding:20px;}
   a{color:var(--accent);}
   @media (max-width:860px){
@@ -137,6 +143,9 @@
 
       <div class="sb-section">COD</div>
       <button class="sb-item" data-view="cod"><span class="sb-icon">💰</span>Tỷ lệ nộp COD (CK/Tiền mặt)</button>
+
+      <div class="sb-section">Bot Telegram</div>
+      <button class="sb-item" data-view="bot"><span class="sb-icon">🤖</span>Lệnh bot &amp; báo cáo tự động</button>
     </nav>
     <div class="sidebar-actions">
       <button class="sb-btn sb-btn-analysis" id="btnAnalysis" disabled>✨ Phân tích chi tiết</button>
@@ -274,6 +283,81 @@
         <h2>Tỷ lệ nộp COD theo bưu cục (CK / Tiền mặt)</h2>
         <div class="desc">Tỷ lệ hình thức thanh toán khi nộp COD, chỉ tính các bưu cục do AM Bùi Xuân Quang quản lý (theo bộ lọc Bưu cục ở trên). Nguồn: sheet "BaoCao_COD_XBG". Không áp dụng bộ lọc ngày ở trên (số liệu snapshot theo ngày cập nhật của sheet nguồn). Xếp hạng theo %CK, cao nhất lên đầu.</div>
         <div id="cod-content"></div>
+      </div>
+    </div>
+
+    <div id="view-bot" class="view hidden">
+      <div class="panel" id="bot-cmds">
+        <button class="bot-copy" data-copy="bot-cmds">📋 Copy</button>
+        <h2>1. Lệnh gõ trong Telegram (báo cáo)</h2>
+        <div class="desc">Nguồn: <code>ghn_bot_with_sheet_push.py</code> (đăng ký lệnh khoảng dòng 9459–9488).</div>
+        <div class="scroll-wrap"><table class="bot-table">
+          <thead><tr><th>Lệnh</th><th>Tác dụng</th></tr></thead>
+          <tbody>
+            <tr><td><code>/start</code></td><td>Menu báo cáo và đẩy báo cáo “Theo giờ” cho toàn bộ 24 bưu cục HP vào nhóm Chỉ số</td></tr>
+            <tr><td><code>/start1</code></td><td>Báo cáo tổng hợp gửi về chat riêng và nhóm</td></tr>
+            <tr><td><code>/capnhat</code></td><td>Cập nhật ngay Báo Cáo Tổng (Gán)</td></tr>
+            <tr><td><code>/baocaonhanh</code></td><td>Báo cáo nhanh bưu cục (tổng đơn, gán, % gán, dự kiến GTC, chuyến chưa kết thúc)</td></tr>
+            <tr><td><code>/gtc6</code> (hoặc <code>/gtc6kho</code>)</td><td>Bảng GTC 6 kho (bảng Tổng + bảng TTS), cũng cập nhật dashboard</td></tr>
+            <tr><td><code>/resend24 yyyymmdd</code></td><td>Gửi lại báo cáo “GTC cuối ngày” của một ngày cho cả 24 bưu cục (ví dụ <code>/resend24 20260905</code>)</td></tr>
+            <tr><td><code>/fdchotra</code> (hoặc <code>/fd</code>)</td><td>FD chờ trả: SME / TTS / Shopee + lý do trả (số liệu tức thời)</td></tr>
+            <tr><td><code>/lctra</code> (hoặc <code>/lc</code>)</td><td>LC trả (luân chuyển trả), cùng cách tách nhóm</td></tr>
+            <tr><td><code>/fdngay</code>, <code>/lcngay</code></td><td>Tổng kết cả ngày FD / LC kèm đánh giá từng bưu cục; thêm <code>homqua</code> để lấy hôm qua</td></tr>
+            <tr><td><code>/aging5</code></td><td>Danh sách mã đơn Aging &gt;5 ngày chưa gán của 6 kho, gửi vào topic từng kho</td></tr>
+            <tr><td><code>/thatlac [homqua|yyyy-mm-dd]</code></td><td>Tổng hợp kiện thất lạc trong ngày</td></tr>
+            <tr><td><code>/baocao &lt;TTS|LC|CuoiNgay&gt; &lt;Tên bưu cục&gt;</code></td><td>Bưu cục trưởng điểm danh nộp báo cáo đúng mốc</td></tr>
+            <tr><td><code>/giaitrinh &lt;mã NV&gt;</code></td><td>Điểm danh đã nộp giải trình Aging &gt;5 ngày</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="panel" id="bot-ops">
+        <button class="bot-copy" data-copy="bot-ops">📋 Copy</button>
+        <h2>2. Lệnh vận hành (không phải báo cáo)</h2>
+        <ul class="bot-list">
+            <li><code>/luukho</code>, <code>/khogiao</code>, <code>/kholay</code>, <code>/khotra</code>, <code>/khohientai &lt;mã đơn…&gt;</code></li>
+            <li><code>/tradon &lt;mã đơn&gt;</code> (chỉ chat riêng)</li>
+            <li><code>/ketthuc &lt;biển số&gt; [mã chuyến]</code></li>
+            <li><code>/ketthuchuyen</code> (hoặc <code>/ketthucchuyen</code>) <code>&lt;mã chuyến&gt;</code></li>
+            <li><code>/topic</code> và <code>/topics</code> (gán topic bưu cục)</li>
+            <li><code>/dangky [mã NV]</code></li>
+        </ul>
+      </div>
+      <div class="panel" id="bot-sched">
+        <button class="bot-copy" data-copy="bot-sched">📋 Copy</button>
+        <h2>3. Báo cáo tự động theo giờ</h2>
+        <div class="desc">Lịch tự động trong <code>ghn_bot_with_sheet_push.py</code> (khoảng dòng 9516–9902).</div>
+        <div class="scroll-wrap"><table class="bot-table">
+          <thead><tr><th>Giờ</th><th>Job</th></tr></thead>
+          <tbody>
+            <tr><td>08:00</td><td>Aging &gt;5 ngày (gửi cả nhóm Chỉ số và nhóm Vận Hành)</td></tr>
+            <tr><td>08:10</td><td><code>aging5_daily_job</code> (danh sách mã đơn Aging &gt;5 ngày vào topic từng kho)</td></tr>
+            <tr><td>10:00, 15:00</td><td>Snapshot backlog (+ lặp mỗi giờ)</td></tr>
+            <tr><td>10:00, 16:00, 21:30</td><td>Aging backlog từng bưu cục (<code>hub_aging_backlog_report_job</code>)</td></tr>
+            <tr><td>12:00</td><td>“Theo giờ” 24 bưu cục (<code>daily_full_hp_report_job</code>)</td></tr>
+            <tr><td>21:00</td><td>Quét eForm miễn check in qua Drive</td></tr>
+            <tr><td>21:45</td><td>Thu tiền (<code>collect_money_report_job</code>)</td></tr>
+            <tr><td>22:15</td><td>GTC cuối ngày 24 bưu cục</td></tr>
+            <tr><td>22:30</td><td>Kiểm tra cuối ngày (<code>end_of_day_check_job</code>)</td></tr>
+            <tr><td>23:15</td><td>Tổng kết FD chờ trả + LC trả kèm đánh giá từng bưu cục → nhóm Vận Hành (<code>ret_eod_job</code>)</td></tr>
+            <tr><td>23:50</td><td>Tổng kết chuyến trễ KCT; 23:50:30 kiện thất lạc</td></tr>
+            <tr><td>Mỗi 20 phút</td><td><code>gtc6kho_live_job</code> (bảng GTC 6 kho trên dashboard)</td></tr>
+            <tr><td>Mỗi 15 phút</td><td>(<code>AUTO_PUSH_INTERVAL_MINUTES</code>) Đẩy dữ liệu bưu cục, backlog LGT, KCT, giao tổng, hàng mới về</td></tr>
+            <tr><td>Mỗi giờ</td><td>Chụp ảnh FD/LC, Báo Cáo Tổng, backlog</td></tr>
+            <tr><td>Mỗi 4 giờ</td><td>Cập nhật tab FD/LC trên dashboard</td></tr>
+            <tr><td>Mỗi 5 phút</td><td>Cảnh báo COD thất bại, theo dõi phiên GHN, quét email báo cáo</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="panel" id="bot-move">
+        <button class="bot-copy" data-copy="bot-move">📋 Copy</button>
+        <h2>4. Khi copy sang máy chủ khác, cần mang theo</h2>
+        <ul class="bot-list">
+            <li>File bot <code>ghn_bot_with_sheet_push.py</code>, dịch vụ trình duyệt <code>ghn_browser_service.py</code>, <code>watchdog.ps1</code>, các file <code>.bat</code>, <code>service_account.json</code>.</li>
+            <li>Các file token do dịch vụ trình duyệt ghi ra: <code>ghn_token_current.txt</code>, <code>ghn_internal_token_current.txt</code>, <code>ghn_truck_token_current.txt</code>, <code>eform_token_current.txt</code>.</li>
+            <li>Chrome với profile <code>ghn_browser_profile</code> (phải đăng nhập GHN lại trên máy mới).</li>
+            <li>Id các nhóm Telegram trong code: <code>TELEGRAM_CHAT_ID_NHOM</code> (nhóm Chỉ số), <code>RET_REPORT_CHAT_ID</code> (nhóm Vận Hành -1003760228435), nhóm KCT, nhóm eForm.</li>
+            <li>Bot chỉ được chạy ở một máy cho mỗi token Telegram (hai bot cùng token sẽ lỗi Conflict).</li>
+        </ul>
       </div>
     </div>
 
@@ -1343,6 +1427,7 @@ document.getElementById('sidebarNav').addEventListener('click', e=>{
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   document.getElementById('view-'+view).classList.remove('hidden');
   document.getElementById('pageTitle').textContent = btn.textContent.trim();
+  document.querySelector('.filters').classList.toggle('hidden', view==='bot');
   updateAnalysisButtonState();
 });
 
@@ -1351,6 +1436,23 @@ document.getElementById('btnAnalysis').addEventListener('click', ()=>{
   const wrap = document.getElementById('chart-'+currentView);
   const nowHidden = wrap.classList.toggle('hidden');
   if(!nowHidden) renderChartForView(currentView);
+});
+
+// ---------- Bot commands page: copy buttons ----------
+document.getElementById('view-bot').addEventListener('click', e=>{
+  const btn = e.target.closest('.bot-copy');
+  if(!btn) return;
+  const panel = document.getElementById(btn.dataset.copy);
+  const lines = [panel.querySelector('h2').textContent.trim()];
+  panel.querySelectorAll('tr').forEach(tr=>lines.push([...tr.children].map(c=>c.textContent.trim()).join('\t')));
+  panel.querySelectorAll('li').forEach(li=>lines.push('- '+li.textContent.trim()));
+  const text = lines.join('\n');
+  const done = ()=>{ btn.textContent='✅ Đã copy'; setTimeout(()=>{ btn.textContent='📋 Copy'; }, 1500); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done, ()=>{ window.prompt('Copy nội dung:', text); });
+  } else {
+    window.prompt('Copy nội dung:', text);
+  }
 });
 
 // ---------- Telegram ----------
